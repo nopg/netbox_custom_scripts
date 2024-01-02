@@ -1,7 +1,7 @@
 import codecs, csv
 from circuits.choices import CircuitStatusChoices
-from circuits.models import Circuit, CircuitType, Provider, ProviderNetwork
-from dcim.models import Device, Interface, Site
+from circuits.models import Circuit, CircuitType, Provider, ProviderNetwork, CircuitTermination
+from dcim.models import Cable, Device, Interface, Site
 from extras.scripts import BooleanVar, ChoiceVar, FileVar, IntegerVar, ObjectVar, Script, StringVar
 
 from django.core.exceptions import ValidationError
@@ -68,13 +68,13 @@ def get_interface_by_name(name: str, device: Device = None):
     
     return interface
 
-def load_circuits_from_csv(circuitsfile, self):
+def load_data_from_csv(csv_file, self) -> dict:
     # column_names = {
     # 'date': ['date', 'valutadate'],
     # 'amount': ['amount', 'amount_withdrawal']
     # }
-    circuits_csv = csv.reader(codecs.iterdecode(circuitsfile, "utf-8"))
-    circuits = []
+    circuits_csv = csv.reader(codecs.iterdecode(csv_file, "utf-8"))
+    csv_data = []
     for (
         cid,
         provider,
@@ -92,7 +92,7 @@ def load_circuits_from_csv(circuitsfile, self):
     ) in circuits_csv:
         if cid == "Circuit ID":
             continue
-        circuit = {
+        csv_row = {
             "cid": cid,
             "provider": provider,
             "type": type,
@@ -107,10 +107,10 @@ def load_circuits_from_csv(circuitsfile, self):
             "contacts": contacts,
             "tags": tags,
         }
-        circuits.append(circuit)
-    return circuits
+        csv_data.append(csv_row)
+    return csv_data
 
-def prepare_csv_row(row: dict):
+def prepare_netbox_row(row: dict):
     skip = False
 
     provider = get_provider_by_name(name=row["provider"])
@@ -123,7 +123,7 @@ def prepare_csv_row(row: dict):
     if not provider or not circuit_type:
         skip = f"Circuit \'{row['cid']}\' is missing a Provider or Circuit Type"
 
-    circuit_row_data = {
+    netbox_row_data = {
         "cid": row["cid"],
         "provider": provider,
         "type": circuit_type,
@@ -139,24 +139,23 @@ def prepare_csv_row(row: dict):
         "tags": row["tags"],
         "skip": skip,
     }
-    return circuit_row_data
 
-def prepare_csv_data(csv_data: dict):
+    return netbox_row_data
+
+def prepare_netbox_data(csv_data: dict) -> dict:
     circuit_data = []
     for row in csv_data:
-        circuit_data.append(prepare_csv_row(row=row))
+        circuit_data.append(prepare_netbox_row(row=row))
     return circuit_data
 
-
-
-def create_circuit(circuit_data: dict[str,any]) -> Circuit:
+def create_circuit(netbox_row: dict[str,any]) -> Circuit:
     new_circuit = Circuit(
-        cid=circuit_data["cid"],
-        provider=circuit_data["provider"],
-        commit_rate=circuit_data["cir"],
-        type=circuit_data["type"],
+        cid=netbox_row["cid"],
+        provider=netbox_row["provider"],
+        commit_rate=netbox_row["cir"],
+        type=netbox_row["type"],
         status=CircuitStatusChoices.STATUS_ACTIVE,
-        description=circuit_data["description"],
+        description=netbox_row["description"],
         # custom_field_data={
         #     "salesforce_url": "https://ifconfig.co"
         # },
@@ -182,17 +181,18 @@ def save_circuit(circuit: Circuit, self: Script):
             messages = "\n".join(lmessages)
             self.log_failure(f"{circuit.cid} - Failed Netbox validation: {messages}")
 
-    
-def circuit_duplicate(circuit_data: dict[str,any]) -> bool:
+    return circuit
+
+def circuit_duplicate(netbox_row: dict[str,any]) -> bool:
     # Check for duplicate
     circ = Circuit.objects.filter(
-        cid=circuit_data["cid"], provider__name=circuit_data["provider"]
+        cid=netbox_row["cid"], provider__name=netbox_row["provider"]
     )
     if circ.count() == 0:  # Normal creation, no duplicate
         return False
     elif circ.count() > 1:
         raise AbortScript(
-            f"Error, multiple duplicates for Circuit ID: {circuit_data['cid']}, please resolve manually."
+            f"Error, multiple duplicates for Circuit ID: {netbox_row['cid']}, please resolve manually."
         )
     else:
         return True # Duplicate found
@@ -205,52 +205,81 @@ def update_existing_circuit(existing_circuit: Circuit, new_circuit: dict[str, an
             setattr(existing_circuit, attribute, new_circuit[attribute])
     return existing_circuit
 
-def build_circuit(self: Script, circuit_data: dict[str,any], overwrite: bool) -> None:
-    duplicate = circuit_duplicate(circuit_data)
+def build_circuit(self: Script, netbox_row: dict[str,any], overwrite: bool) -> None:
+    duplicate = circuit_duplicate(netbox_row)
     if not duplicate: # No duplicate
-        new_circuit = create_circuit(circuit_data)
+        new_circuit = create_circuit(netbox_row)
+
     elif duplicate and overwrite:
         self.log_warning(
-            f"Overwrites enabled, updating existing circuit: {circuit_data['cid']} ! See change log for original values."
+            f"Overwrites enabled, updating existing circuit: {netbox_row['cid']} ! See change log for original values."
         )
         existing_circuit = Circuit.objects.get(
-            cid=circuit_data["cid"], provider__name=circuit_data["provider"]
+            cid=netbox_row["cid"], provider__name=netbox_row["provider"]
         )
         if existing_circuit.pk and hasattr(existing_circuit, "snapshot"):
             # self.log_info(f"Creating snapshot: {circ.cid}")
             existing_circuit.snapshot()
-        new_circuit = update_existing_circuit(existing_circuit, new_circuit=circuit_data)    
+
+        new_circuit = update_existing_circuit(existing_circuit, new_circuit=netbox_row)    
     else: # don't overwrite
         self.log_failure(
-            f"Error, existing Circuit: {circuit_data['cid']} found and overwrites are disabled, skipping."
+            f"Error, existing Circuit: {netbox_row['cid']} found and overwrites are disabled, skipping."
         )
         return None
 
-    save_circuit(new_circuit, self)
+    return save_circuit(new_circuit, self)
 
-def build_terminations(self, circuit) -> None:
-    # RENAME CIRCUIT HERE AND CIRCUITS TO DATA OR OTHER
-    if circuit["device"] and not circuit["interface"]:
-        self.log_failure(f"Skipping Side A Termination on '{circuit['cid']}' due to missing Device Interface")
+def save_terminations(terminations: list):
+    for termination in terminations:
+        termination.full_clean()
+        termination.save()
 
-def main_circuit_entry(self: Script, circuit: dict[str, any], overwrite: bool):
 
-#     ### prepare data
-#     ### add circuit
-#     # add terminations
-#     # add cable
-#     # save
+def build_terminations(self: Script, netbox_row: dict[str,any], circuit: Circuit) -> None:
+    if netbox_row["device"] and not netbox_row["interface"]:
+        self.log_warning(f"Skipping Side A Termination on '{netbox_row['cid']}' due to missing Device Interface")
+        return None
     
-    build_circuit(self, circuit, overwrite)
-    build_terminations(self, circuit)
-    #add_cable(self, circuit)
+    if not netbox_row["side_a"]:
+        self.log_warning(f"Skipping Side A Termination on '{netbox_row['cid']}' due to missing Site")
+        return None
 
-def main_circuits_loop(self: Script, circuits_data: list[dict[str, any]], overwrite: bool = False) -> None:
-    for circuit_data in circuits_data:
-        if not circuit_data["skip"]:
-            main_circuit_entry(self, circuit_data, overwrite)
+    termination_a = CircuitTermination(term_side="A", site=netbox_row["side_a"], circuit=circuit)
+
+    if not netbox_row["side_z"]:
+        self.log_warning(f"Skipping Side Z Termination on '{netbox_row['cid']}' due to missing Provider Network")
+        return None
+    
+    termination_z = CircuitTermination(term_side="Z", provider_network=netbox_row["side_z"], circuit=circuit)
+
+    save_terminations([termination_a, termination_z])
+
+    return termination_a
+
+def save_cable(cable: Cable) -> None:
+    cable.full_clean()
+    cable.save()
+
+def build_cable(self: Script, interface: Interface, side_b) -> None:
+    cable = Cable(a_terminations=[interface], b_terminations=[side_b])
+    save_cable(cable)
+
+def main_circuit_entry(self: Script, netbox_row: dict[str, any], overwrite: bool):    
+    circuit = build_circuit(self, netbox_row, overwrite)
+    side_a = build_terminations(self, netbox_row, circuit)
+
+    if netbox_row["interface"]:
+        build_cable(self, netbox_row["interface"], side_a)
+    else:
+        self.log_warning(f"Skipping cable creation due to missing interface on circuit '{circuit.cid}")
+
+def main_circuits_loop(self: Script, netbox_data: list[dict[str, any]], overwrite: bool = False) -> None:
+    for netbox_row in netbox_data:
+        if not netbox_row["skip"]:
+            main_circuit_entry(self, netbox_row, overwrite)
         else:
-            self.log_warning(f"Skipping circuit \'{circuit_data['cid']}\' due to: {circuit_data['skip']}")
+            self.log_warning(f"Skipping circuit \'{netbox_row['cid']}\' due to: {netbox_row['skip']}")
 
 
 ## Custom Scripts
@@ -369,7 +398,7 @@ class SingleCircuit(Script):
 
     def run(self, data, commit):
         data["type"] = data["circuit_type"]
-        output = add_circuit_data(circuit_data=data, overwrite=data["overwrite"], self=self)
+        output = main_circuit_entry(circuit_data=data, overwrite=data["overwrite"], self=self)
         if output:
             return output
 
@@ -411,11 +440,11 @@ class BulkCircuits(Script):
 
     # Run
     def run(self, data, commit):
-        csv_data = load_circuits_from_csv(data["bulk_circuits"], self)
-        circuit_data = prepare_csv_data(csv_data)
+        csv_data = load_data_from_csv(data["bulk_circuits"], self)
+        netbox_data = prepare_netbox_data(csv_data)
         # return pretty_repr(circuit_data)
 
-        main_circuits_loop(circuits_data=circuit_data, overwrite=data['overwrite'], self=self)
+        main_circuits_loop(netbox_data=netbox_data, overwrite=data['overwrite'], self=self)
         # log final job status as failed/completed better (abortscript)
 
 script_order = (SingleCircuit, BulkCircuits)
