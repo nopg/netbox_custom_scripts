@@ -1,26 +1,78 @@
 import codecs, csv
 from circuits.choices import CircuitStatusChoices
-from circuits.models import Circuit, CircuitType, Provider
-from extras.scripts import BooleanVar, ChoiceVar, FileVar, IntegerVar, Script, StringVar
+from circuits.models import Circuit, CircuitType, Provider, ProviderNetwork
+from dcim.models import Device, Interface, Site
+from extras.scripts import BooleanVar, ChoiceVar, FileVar, IntegerVar, ObjectVar, Script, StringVar
 
 from django.core.exceptions import ValidationError
 from utilities.exceptions import AbortScript
 
 from local.validators import MyCircuitValidator
 
+from rich.pretty import pretty_repr
 
 ## Util functions
 
 
 def get_provider_by_name(name: str):
-    provider = Provider.objects.get(name=name)
+    try:
+        provider = Provider.objects.get(name=name)
+    except Provider.DoesNotExist:
+        return None
+
     return provider
 
+def get_provider_network_by_name(name: str):
+    try:
+        provider_network = ProviderNetwork.objects.get(name=name)
+    except ProviderNetwork.DoesNotExist:
+        return None
+
+    return provider_network
+
 def get_circuit_type_by_name(name: str):
-    _type = CircuitType.objects.get(name=name)
+    try:
+        _type = CircuitType.objects.get(name=name)
+    except CircuitType.DoesNotExist:
+        return None
+    
     return _type
 
+def get_site_by_name(name: str):
+    try:
+        site = Site.objects.get(name=name)
+    except Site.DoesNotExist:
+        return None
+    
+    return site
+
+def get_device_by_name(name: str, site: Site = None):
+    try:
+        if site:
+            device = Device.objects.get(name=name, site=site)
+        else:
+            device = Device.objects.get(name=name)
+    except Device.DoesNotExist:
+        return None
+    
+    return device
+
+def get_interface_by_name(name: str, device: Device = None):
+    try:
+        if device:
+            interface = Interface.objects.get(name=name, device=device)
+        else:
+            interface = Interface.objects.get(name=name)
+    except Interface.DoesNotExist:
+        return None
+    
+    return interface
+
 def load_circuits_from_csv(circuitsfile, self):
+    # column_names = {
+    # 'date': ['date', 'valutadate'],
+    # 'amount': ['amount', 'amount_withdrawal']
+    # }
     circuits_csv = csv.reader(codecs.iterdecode(circuitsfile, "utf-8"))
     circuits = []
     for (
@@ -28,9 +80,11 @@ def load_circuits_from_csv(circuitsfile, self):
         provider,
         type,
         side_a,
+        device,
+        interface,
         side_z,
         description,
-        date_installed,
+        install_date,
         cir,
         comments,
         contacts,
@@ -43,9 +97,11 @@ def load_circuits_from_csv(circuitsfile, self):
             "provider": provider,
             "type": type,
             "side_a": side_a,
+            "device": device,
+            "interface": interface,
             "side_z": side_z,
             "description": description,
-            "date_installed": date_installed,
+            "install_date": install_date,
             "cir": cir,
             "comments": comments,
             "contacts": contacts,
@@ -54,108 +110,147 @@ def load_circuits_from_csv(circuitsfile, self):
         circuits.append(circuit)
     return circuits
 
-def load_circuit_from_gui(data: dict):
-    provider = get_provider_by_name(name=data["provider"])
-    circuit_type = get_circuit_type_by_name(name=data["circuit_type"])
+def prepare_csv_row(row: dict):
+    skip = False
 
-    circuit = {
-        "cid": data["cid"],
+    provider = get_provider_by_name(name=row["provider"])
+    circuit_type = get_circuit_type_by_name(name=row["type"])
+    site = get_site_by_name(name=row["side_a"])
+    provider_network = get_provider_network_by_name(name=row["side_z"])
+    device = get_device_by_name(name=row["device"], site=site)
+    interface = get_interface_by_name(name=row["interface"], device=device)
+
+    if not provider or not circuit_type:
+        skip = f"Circuit \'{row['cid']}\' is missing a Provider or Circuit Type"
+
+    circuit_row_data = {
+        "cid": row["cid"],
         "provider": provider,
         "type": circuit_type,
-        "side_a": data["side_a"],
-        "side_z": data["side_z"],
-        "description": data["description"],
-        "date_installed": data["date_installed"],
-        "cir": data["cir"],
-        "comments": data["comments"],
-        "contacts": data["contacts"],
-        "tags": data["tags"],
+        "side_a": site,             # SIDE A ALWAYS SITE ?!
+        "device": device,
+        "interface": interface,
+        "side_z": provider_network, # SIDE Z ALWAYS PROVIDER NETWORK ?!
+        "description": row["description"],
+        "install_date": row["install_date"],
+        "cir": row["cir"],
+        "comments": row["comments"],
+        "contacts": row["contacts"],
+        "tags": row["tags"],
+        "skip": skip,
     }
-    return circuit
+    return circuit_row_data
 
-def prepare_circuit(circuit: dict, overwrite, self):
-    if circuit["provider"] == "" or circuit["type"] == "":
-        return None
+def prepare_csv_data(csv_data: dict):
+    circuit_data = []
+    for row in csv_data:
+        circuit_data.append(prepare_csv_row(row=row))
+    return circuit_data
 
-    provider = Provider.objects.get(name=circuit["provider"])
-    _type = CircuitType.objects.get(name=circuit["type"])
 
-    circ = Circuit.objects.filter(
-        cid=circuit["cid"], provider__name=circuit["provider"]
-    )
 
-    prepared_circuit = Circuit(
-        cid=circuit["cid"],
-        provider=provider,
-        commit_rate=circuit["cir"],
-        type=_type,
+def create_circuit(circuit_data: dict[str,any]) -> Circuit:
+    new_circuit = Circuit(
+        cid=circuit_data["cid"],
+        provider=circuit_data["provider"],
+        commit_rate=circuit_data["cir"],
+        type=circuit_data["type"],
         status=CircuitStatusChoices.STATUS_ACTIVE,
-        description=circuit["description"],
+        description=circuit_data["description"],
         # custom_field_data={
         #     "salesforce_url": "https://ifconfig.co"
         # },
     )
+    return new_circuit
 
-    if circ.count() == 0:  # Normal creation
-        return prepared_circuit
-    if circ.count() > 1:  # Should never hit
-        raise AbortScript(
-            f"Error, multiple duplicates for Circuit ID: {circuit['cid']}, please resolve manually."
-        )
-    else:  # We are attempting to update an existing circuit:
-        circ = circ[0]
-        if not overwrite:
-            self.log_failure(
-                f"Error, existing Circuit: {circ.cid} found and overwrites are disabled, skipping."
-            )
-            return None
+def validate_circuit(circuit: Circuit) -> bool:
+    b = MyCircuitValidator()
+    failed = b.validate(circuit=circuit, manual=True)
+    return failed
 
-        self.log_warning(
-            f"Overwrites enabled, updating existing circuit: {circ.cid} ! See change log for original values."
-        )
-        if circ.pk and hasattr(circ, "snapshot"):
-            # self.log_info(f"Creating snapshot: {circ.cid}")
-            circ.snapshot()
-
-        # Finish proper updates
-        circ.description = circuit["description"]
-        return circ
-
-
-def add_circuit(circuit, overwrite, self, test=False):
-    if test:
-        output = ""
-        for k, v in circuit.items():
-            output += f"{v=} - "
-        print(f"{output}\n")
-        return output
-
-    new_circuit = prepare_circuit(circuit, overwrite, self)
-
-    if new_circuit:
+def save_circuit(circuit: Circuit, self: Script):
+    error = validate_circuit(circuit)
+    if error:
+        self.log_failure(f"Failed custom validation: {error}")
+    else:
         try:
-            b = MyCircuitValidator()
-            failed = b.validate(circuit=new_circuit, manual=True)
-            if failed:
-                self.log_failure(f"Failed validation: {failed}")
-                return None
-            new_circuit.full_clean()
-            new_circuit.save()
-            self.log_success(f"Created circuit: {new_circuit.cid}")
+            circuit.full_clean()
+            circuit.save()
+            self.log_success(f"Saved circuit: '{circuit.cid}'")
         except ValidationError as e:
             lmessages = [msg for msg in e.messages]
             messages = "\n".join(lmessages)
-            self.log_failure(f"{new_circuit.cid} - Failed validation: {messages}")
+            self.log_failure(f"{circuit.cid} - Failed Netbox validation: {messages}")
 
+    
+def circuit_duplicate(circuit_data: dict[str,any]) -> bool:
+    # Check for duplicate
+    circ = Circuit.objects.filter(
+        cid=circuit_data["cid"], provider__name=circuit_data["provider"]
+    )
+    if circ.count() == 0:  # Normal creation, no duplicate
+        return False
+    elif circ.count() > 1:
+        raise AbortScript(
+            f"Error, multiple duplicates for Circuit ID: {circuit_data['cid']}, please resolve manually."
+        )
+    else:
+        return True # Duplicate found
+    
+def update_existing_circuit(existing_circuit: Circuit, new_circuit: dict[str, any]) -> None:
+    for attribute in ("description", "type", "install_date", "cir", "comments"):
+        if not new_circuit[attribute] and attribute in ("install_date"):
+                setattr(existing_circuit, attribute, None)
+        else:
+            setattr(existing_circuit, attribute, new_circuit[attribute])
+    return existing_circuit
 
-def add_circuits(circuits, overwrite, self):
-    output = ""
-    for circuit in circuits:
-        _output = add_circuit(circuit, overwrite, self)
-        if _output:
-            output += _output
-    if output:
-        return output
+def build_circuit(self: Script, circuit_data: dict[str,any], overwrite: bool) -> None:
+    duplicate = circuit_duplicate(circuit_data)
+    if not duplicate: # No duplicate
+        new_circuit = create_circuit(circuit_data)
+    elif duplicate and overwrite:
+        self.log_warning(
+            f"Overwrites enabled, updating existing circuit: {circuit_data['cid']} ! See change log for original values."
+        )
+        existing_circuit = Circuit.objects.get(
+            cid=circuit_data["cid"], provider__name=circuit_data["provider"]
+        )
+        if existing_circuit.pk and hasattr(existing_circuit, "snapshot"):
+            # self.log_info(f"Creating snapshot: {circ.cid}")
+            existing_circuit.snapshot()
+        new_circuit = update_existing_circuit(existing_circuit, new_circuit=circuit_data)    
+    else: # don't overwrite
+        self.log_failure(
+            f"Error, existing Circuit: {circuit_data['cid']} found and overwrites are disabled, skipping."
+        )
+        return None
+
+    save_circuit(new_circuit, self)
+
+def build_terminations(self, circuit) -> None:
+    # RENAME CIRCUIT HERE AND CIRCUITS TO DATA OR OTHER
+    if circuit["device"] and not circuit["interface"]:
+        self.log_failure(f"Skipping Side A Termination on '{circuit['cid']}' due to missing Device Interface")
+
+def main_circuit_entry(self: Script, circuit: dict[str, any], overwrite: bool):
+
+#     ### prepare data
+#     ### add circuit
+#     # add terminations
+#     # add cable
+#     # save
+    
+    build_circuit(self, circuit, overwrite)
+    build_terminations(self, circuit)
+    #add_cable(self, circuit)
+
+def main_circuits_loop(self: Script, circuits_data: list[dict[str, any]], overwrite: bool = False) -> None:
+    for circuit_data in circuits_data:
+        if not circuit_data["skip"]:
+            main_circuit_entry(self, circuit_data, overwrite)
+        else:
+            self.log_warning(f"Skipping circuit \'{circuit_data['cid']}\' due to: {circuit_data['skip']}")
 
 
 ## Custom Scripts
@@ -171,13 +266,17 @@ class SingleCircuit(Script):
         fieldsets = (
             (
                 "Enter Circuit Information",
-                ("provider", "circuit_type", "cid", "cir", "side_a", "side_z", "description", "status"),
+                ("provider", "circuit_type", "cid", "cir", "description", "status"),
+            ),
+            (
+                "Termination",
+                ("side_a", "side_z", "device_name", "interface")
             ),
             (
                 "Other",
-                ("date_installed", "comment", "contacts", "tags"),
+                ("install_date", "comment", "contacts", "tags"),
             ),
-            ("Advanced Options", ("create_sites", "create_provider", "overwrite"))
+            ("Advanced Options", ("create_sites", "create_provider", "create_device", "create_rack", "create_pp", "overwrite"))
         )
 
     create_sites = BooleanVar(
@@ -186,8 +285,17 @@ class SingleCircuit(Script):
     create_provider = BooleanVar(
         description="Auto create non-existing Providers?", default=False
     )
+    create_device = BooleanVar(
+        description="Auto create non-existing Devices?", default=False
+    )
+    create_rack = BooleanVar(
+        description="Auto create non-existing Racks?", default=False
+    )
+    create_pp = BooleanVar(
+        description="Auto create non-existing Patch Panels?", default=False
+    )
     overwrite = BooleanVar(
-        description="Overwrite existing circuits? (same ID & Provider)", default=True
+        description="Overwrite existing circuits? (same ID & Provider)", default=False
     )
     provider = StringVar(
         description="Circuit Provider",
@@ -201,14 +309,6 @@ class SingleCircuit(Script):
         description="Circuit ID",
         required=False,
     )
-    side_a = StringVar(
-        description="Side A (update to...?)",
-        required=False,
-    )
-    side_z = StringVar(
-        description="Side Z (update to...?)",
-        required=False,
-    )
     description = StringVar(
         description="Circuit Description",
         required=False,
@@ -219,13 +319,40 @@ class SingleCircuit(Script):
         description="Circuit Status",
         required=False,
     )
-    date_installed = StringVar(
+    install_date = StringVar(
         description="Date installed (update to  date field...?)",
         required=False,
     )
     cir = IntegerVar(
         description="Commit rate(rename, update to int",
         required=False,
+    )
+    side_a = ObjectVar(
+        model = Site,
+        description="Side A",
+        required=False,
+    )
+    side_z = ObjectVar(
+        model = ProviderNetwork,
+        description="Side Z",
+        required=False,
+    )
+    device = ObjectVar(
+        model = Device,
+        description = "Device",
+        required = False,
+        query_params={
+            "site_id": "$side_a"
+        }
+
+    )
+    interface = ObjectVar(
+        model = Interface,
+        description = "Interface",
+        required = False,
+        query_params={
+            "device_id": "$device"
+        },
     )
     comment = StringVar(
         description="Comment",
@@ -242,8 +369,7 @@ class SingleCircuit(Script):
 
     def run(self, data, commit):
         data["type"] = data["circuit_type"]
-        #circuit = prepare_circuit(circuit=data, overwrite=data["overwrite"], self=self)
-        output = add_circuit(circuit=data, overwrite=data["overwrite"], self=self)
+        output = add_circuit_data(circuit_data=data, overwrite=data["overwrite"], self=self)
         if output:
             return output
 
@@ -257,7 +383,7 @@ class BulkCircuits(Script):
 
         fieldsets = (
             ("Import CSV", ("bulk_circuits",)),
-            ("Advanced Options", ("create_sites", "create_provider", "overwrite")),
+            ("Advanced Options", ("create_sites", "create_provider", "create_device", "create_rack", "create_pp", "overwrite")),
         )
 
     # Display fields
@@ -270,18 +396,27 @@ class BulkCircuits(Script):
     create_provider = BooleanVar(
         description="Auto create non-existing Providers?", default=False
     )
+    create_device = BooleanVar(
+        description="Auto create non-existing Devices?", default=False
+    )
+    create_rack = BooleanVar(
+        description="Auto create non-existing Racks?", default=False
+    )
+    create_pp = BooleanVar(
+        description="Auto create non-existing Patch Panels?", default=False
+    )
     overwrite = BooleanVar(
-        description="Overwrite existing circuits? (same ID & Provider)", default=True
+        description="Overwrite existing circuits? (same ID & Provider)", default=False
     )
 
     # Run
     def run(self, data, commit):
-        circuits = load_circuits_from_csv(data["bulk_circuits"], self)
-        output = add_circuits(circuits, data['overwrite'], self)
-        if output:
-            return output
-        # log final job status as failed/completed better (abortscript)
+        csv_data = load_circuits_from_csv(data["bulk_circuits"], self)
+        circuit_data = prepare_csv_data(csv_data)
+        # return pretty_repr(circuit_data)
 
+        main_circuits_loop(circuits_data=circuit_data, overwrite=data['overwrite'], self=self)
+        # log final job status as failed/completed better (abortscript)
 
 script_order = (SingleCircuit, BulkCircuits)
 name = "NICE InContact Circuit Manager"
