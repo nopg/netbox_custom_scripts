@@ -6,7 +6,7 @@ from circuits.models import Circuit, CircuitType, Provider
 from utilities.testing.base import TestCase
 #from extras.choices import LogLevelChoices
 
-from .circuit_adder import BulkCircuits, SingleCircuit, add_circuit, prepare_circuit
+from .circuit_adder import BulkCircuits, SingleCircuit, save_circuit, prepare_netbox_row, circuit_duplicate, create_circuit
 
 
 class CircuitAdderTestCase(TestCase):
@@ -45,36 +45,64 @@ class CircuitAdderTestCase(TestCase):
         x = 5
         self.assertEquals(x, 5)
 
-    def test_add_circuit(self):
+    def test_save_circuit(self):
         circuit = {
             "cid": 'myCircuit 10',
             "provider": "Provider 1",
             "type": "Circuit Type 1",
             "description": "My description 1",
+            "install_date": "",
+            "comments": "",
+            "contacts": "",
+            "tags": "",
+            "side_a": "",
+            "side_z": "",
+            "device": "",
+            "interface": "",
             "cir": 1000,
         }
+        circuit = prepare_netbox_row(circuit)
+        circuit = create_circuit(circuit)
 
         with self.assertLogs(
             "netbox.scripts.scripts.circuit_adder.BulkCircuits", level="INFO"
         ) as logs:  # LogLevelChoices.LOG_SUCCESS
-            output = add_circuit(circuit=circuit, overwrite=False, self=BulkCircuits())
+            output = save_circuit(circuit, self=BulkCircuits())
 
         # ['INFO:netbox.scripts.scripts.circuit_adder.BulkCircuits:Created circuit: Circuit 10']
-        self.assertIn("Created circuit:", logs.output[0])
+        self.assertIn("Saved circuit:", logs.output[0])
 
-    def test_add_circuit_duplicate_overwrite(self):
+    # def test_add_circuit_duplicate_overwrite(self):
+    #     circuit = {
+    #         "cid": 'Circuit 1',
+    #         "provider": "Provider 1",
+    #         "type": "Circuit Type 1",
+    #         "description": "My description 1",
+    #         "cir": 1000,
+    #     }
+
+    #     with self.assertLogs(
+    #         "netbox.scripts.scripts.circuit_adder.SingleCircuit", level="WARNING"
+    #     ) as logs:  # LogLevelChoices.LOG_WARNING
+    #         output = add_circuit_data(circuit, overwrite=True, self=SingleCircuit())
+
+    #     # ['WARNING:netbox.scripts.scripts.circuit_adder.BulkCircuits:Overwrites enabled, updating existing circuit: Circuit 1 ! See change log for original values.']
+    #     self.assertIn("Overwrites enabled, updating existing circuit:", logs.output[0])
+
+    def test_duplicate_circuit(self):
         circuit = {
             "cid": 'Circuit 1',
             "provider": "Provider 1",
             "type": "Circuit Type 1",
             "description": "My description 1",
+            "install_date": "",
+            "comments": "",
+            "contacts": "",
+            "tags": "",
+            "side_a": "",
+            "side_z": "",
+            "device": "",
+            "interface": "",
             "cir": 1000,
         }
-
-        with self.assertLogs(
-            "netbox.scripts.scripts.circuit_adder.SingleCircuit", level="WARNING"
-        ) as logs:  # LogLevelChoices.LOG_WARNING
-            output = add_circuit(circuit, overwrite=True, self=SingleCircuit())
-
-        # ['WARNING:netbox.scripts.scripts.circuit_adder.BulkCircuits:Overwrites enabled, updating existing circuit: Circuit 1 ! See change log for original values.']
-        self.assertIn("Overwrites enabled, updating existing circuit:", logs.output[0])
+        self.assertTrue(circuit_duplicate(circuit))

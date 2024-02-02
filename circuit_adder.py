@@ -272,7 +272,7 @@ def main_circuit_entry(self: Script, netbox_row: dict[str, any], overwrite: bool
     if netbox_row["interface"]:
         build_cable(self, netbox_row["interface"], side_a)
     else:
-        self.log_warning(f"Skipping cable creation due to missing interface on circuit '{circuit.cid}")
+        self.log_warning(f"Skipping cable creation to device interface due to missing interface on device '{circuit.cid}")
 
 def main_circuits_loop(self: Script, netbox_data: list[dict[str, any]], overwrite: bool = False) -> None:
     for netbox_row in netbox_data:

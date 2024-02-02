@@ -6,9 +6,10 @@ from circuits.models import Circuit
 class MyCircuitValidator(CustomValidator):
 
     def validate(self, circuit: Circuit, manual = False):
+        failed = False
         if not circuit.cid.startswith("my"):
-            failed_message = f"Circuit ID '{circuit.cid}' must start with 'my'."
+            failed = f"Circuit ID '{circuit.cid}' must start with 'my'."
             if manual:
-                return failed_message
+                return failed
             else:
-                self.fail(failed_message, field='cid')
+                self.fail(failed, field='cid')
