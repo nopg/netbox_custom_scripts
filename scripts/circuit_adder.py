@@ -1,8 +1,9 @@
 from circuits.choices import CircuitStatusChoices
+from circuits.models import ProviderNetwork
 from dcim.models import Cable, Device, Interface, Site
 from extras.scripts import BooleanVar, ChoiceVar, FileVar, IntegerVar, ObjectVar, Script, StringVar
 
-from local.utils import *
+from local.utils import load_data_from_csv, prepare_netbox_data, main_circuit_entry, main_circuits_loop
 
 
 class SingleCircuit(Script):
@@ -20,7 +21,7 @@ class SingleCircuit(Script):
             ),
             (
                 "Termination",
-                ("side_a", "side_z", "device_name", "interface")
+                ("side_a", "side_z", "device", "interface")
             ),
             (
                 "Other",
