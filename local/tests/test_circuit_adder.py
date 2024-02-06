@@ -58,9 +58,9 @@ class CircuitAdderTestCase(TestCase):
             "contacts": "",
             "tags": "",
             "side_a": "Site 1",
-            "side_z": "",
-            "device": "",
-            "interface": "",
+            "side_z": "Provider-Network 1",
+            "device": "Device 1",
+            "interface": "Interface 1",
             "cir": 1000,
         }
 
@@ -345,3 +345,81 @@ class CircuitAdderTestCase(TestCase):
         termination_a = build_terminations(SingleCircuit(), netbox_row, circuit)
 
         self.assertIsInstance(termination_a, CircuitTermination)
+
+    def test_build_terminations_missing_interface(self):
+        new_circuit_add_missing_interface_1 = {
+            "cid": "Circuit Test Add Missing Interface",
+            "provider": "Provider 2",
+            "type": "Circuit-Type 2",
+            "description": "My description 2",
+            "install_date": "",
+            "comments": "",
+            "contacts": "",
+            "tags": "",
+            "side_a": "Site 1",
+            "side_z": "",
+            "device": "Device 1",
+            "interface": "",
+            "cir": 1000,
+        }
+        netbox_row = prepare_netbox_row(new_circuit_add_missing_interface_1)
+        circuit = build_circuit(SingleCircuit(), netbox_row)
+
+        with self.assertLogs(
+            "netbox.scripts.scripts.circuit_adder.SingleCircuit", level="WARNING"
+        ) as logs:  # LogLevelChoices.LOG_??
+            termination_a = build_terminations(SingleCircuit(), netbox_row, circuit)
+
+        self.assertIn("due to missing Device Interface", logs.output[0])
+
+    def test_build_terminations_missing_site(self):
+        new_circuit_add_missing_site = {
+            "cid": "Circuit Test Add Missing Site",
+            "provider": "Provider 2",
+            "type": "Circuit-Type 2",
+            "description": "My description 2",
+            "install_date": "",
+            "comments": "",
+            "contacts": "",
+            "tags": "",
+            "side_a": "Site Missing",
+            "side_z": "",
+            "device": "Device 1",
+            "interface": "",
+            "cir": 1000,
+        }
+        netbox_row = prepare_netbox_row(new_circuit_add_missing_site)
+        circuit = build_circuit(SingleCircuit(), netbox_row)
+
+        with self.assertLogs(
+            "netbox.scripts.scripts.circuit_adder.SingleCircuit", level="WARNING"
+        ) as logs:  # LogLevelChoices.LOG_??
+            termination_a = build_terminations(SingleCircuit(), netbox_row, circuit)
+
+        self.assertIn("due to missing Site", logs.output[0])
+
+    def test_build_terminations_missing_provider_network(self):
+        new_circuit_add_missing_provider_network = {
+            "cid": "Circuit Test Add Missing Provider Network",
+            "provider": "Provider 2",
+            "type": "Circuit-Type 2",
+            "description": "My description 2",
+            "install_date": "",
+            "comments": "",
+            "contacts": "",
+            "tags": "",
+            "side_a": "Site 1",
+            "side_z": "Provider Network Missing",
+            "device": "Device 1",
+            "interface": "Interface 1",
+            "cir": 1000,
+        }
+        netbox_row = prepare_netbox_row(new_circuit_add_missing_provider_network)
+        circuit = build_circuit(SingleCircuit(), netbox_row)
+
+        with self.assertLogs(
+            "netbox.scripts.scripts.circuit_adder.SingleCircuit", level="WARNING"
+        ) as logs:  # LogLevelChoices.LOG_??
+            termination_a = build_terminations(SingleCircuit(), netbox_row, circuit)
+
+        self.assertIn("due to missing Provider Network", logs.output[0])
