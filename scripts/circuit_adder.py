@@ -162,7 +162,7 @@ class BulkCircuits(Script):
 
     # Run
     def run(self, data, commit):
-        csv_data = load_data_from_csv(data["bulk_circuits"], self)
+        csv_data = load_data_from_csv(data["bulk_circuits"])
         netbox_data = prepare_netbox_data(csv_data)
         # return pretty_repr(circuit_data)
 
