@@ -1,4 +1,4 @@
-Circuit ID,Provider,Type,Side A,Device,Interface,Side Z,Description,Date installed,Commit rate (Kbps),Comments,Contacts,Tags
+Circuit ID,Provider,Circuit Type,Side A,Device,Interface,Side Z,Description,Date Installed,Commit Rate (Kbps),Comments,Contacts,Tags
 Circuit 21,Provider 1,Circuit-Type 1,Site 1,Device 1,Interface 1,Provider-Network 1,mydesc1,,10485760,,,
 Circuit 22,Provider Missing,Circuit-Type 2,Site 2,Device 1,Interface 1,,,,,,,
 Circuit 23,Provider 2,Circuit-Type Missing,Site 3,Device 3,Interface 3,provider-network-equinix,mydesc2,,1000000,,,
