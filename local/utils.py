@@ -32,7 +32,7 @@ HEADER_MAPPING = {
     "Contacts": "contacts",
     "Tags": "tags",
     "Patch Panel": "pp",
-    "PP Port": "pp_info",
+    "PP Port": "pp_port",
 }
 
 REQUIRED_VARS = {
@@ -93,6 +93,12 @@ def get_interface_by_name(name: str, device: Device = None):
     
     return interface
 
+def get_side_a(side_a: Site | ProviderNetwork) -> Site | ProviderNetwork:
+    ...
+
+def get_side_z(side_z: Site | ProviderNetwork) -> Site | ProviderNetwork:
+    ...
+
 def load_data_from_csv(csv_file) -> list[dict]:
     circuits_csv = csv.DictReader(codecs.iterdecode(csv_file, "utf-8"))
     csv_data = []
@@ -127,24 +133,32 @@ def prepare_netbox_row(row: dict):
     provider = get_provider_by_name(name=row["provider"])
     circuit_type = get_circuit_type_by_name(name=row["type"])
     site = get_site_by_name(name=row["side_a"])
+    #side_a = get_side_a(side_a=row["side_a"])
     provider_network = get_provider_network_by_name(name=row["side_z"])
+    #side_z = get_side_z(side_a=row["side_a"])
     device = get_device_by_name(name=row["device"], site=site)
     interface = get_interface_by_name(name=row["interface"], device=device)
+    pp = get_device_by_name(name=row["pp"], site=site)
+    pp_port = get_interface_by_name(name=row["pp_port"], device=pp)
 
     netbox_row = {
         "cid": row["cid"],
         "provider": provider,
         "type": circuit_type,
         "side_a": site,             # SIDE A ALWAYS SITE ?!
+        #"side_a": side_a,
         "device": device,
         "interface": interface,
         "side_z": provider_network, # SIDE Z ALWAYS PROVIDER NETWORK ?!
+        #"side_z": side_z,
         "description": row["description"],
         "install_date": row["install_date"],
-        "cir": row["cir"],
+        "cir": row["cir"] if row["cir"] else None,
         "comments": row["comments"],
         "contacts": row["contacts"],
         "tags": row["tags"],
+        "pp": pp,
+        "pp_port": pp_port,
     }
 
     netbox_row["skip"] = validate_row(netbox_row)
@@ -271,7 +285,7 @@ def build_terminations(self: Script, netbox_row: dict[str,any], circuit: Circuit
     elif termination_z:
         save_terminations([termination_z])
 
-    return termination_a
+    return termination_a, termination_z
 
 def save_cable(cable: Cable) -> None:
     cable.full_clean()
@@ -281,12 +295,20 @@ def build_cable(self: Script, side_a: Interface, side_b) -> None:
     cable = Cable(a_terminations=[side_a], b_terminations=[side_b])
     save_cable(cable)
 
+def build_pp_cable(self: Script, netbox_row: dict, circuit: Circuit) -> Cable:
+    if netbox_row["pp"] and netbox_row["pp_port"]:
+        if circuit.termination_a:
+            ct_side_a = circuit.termination_a
+        build_cable(self, side_a=netbox_row["pp_port"], side_b=ct_side_a)
+
 def main_circuit_entry(self: Script, netbox_row: dict[str, any], overwrite: bool):    
     circuit = build_circuit(self, netbox_row, overwrite)
-    ct_side_a = build_terminations(self, netbox_row, circuit)
+    ct_side_a, ct_side_z = build_terminations(self, netbox_row, circuit)
+
+    build_pp_cable(self, netbox_row, circuit)
 
     if netbox_row["interface"]:
-        build_cable(self, side_a=netbox_row["interface"], side_b=ct_side_a)
+        build_cable(self, side_a=netbox_row["interface"], side_b=netbox_row["pp_front_port"])
     else:
         self.log_warning(f"Skipping cable creation to device interface due to missing interface on device '{circuit.cid}")
 
