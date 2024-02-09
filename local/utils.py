@@ -15,6 +15,7 @@ from django.core.files.uploadedfile import InMemoryUploadedFile
 from typing import TextIO
 FILE = InMemoryUploadedFile | TextIO
 
+BULK_SCRIPT_ALLOWED_USERS = ["netbox", "danny.berman", "joe.deweese", "loran.fuchs"]
 UPDATED_ATTRIBUTES = "install_date"
 
 HEADER_MAPPING = {
@@ -38,6 +39,13 @@ HEADER_MAPPING = {
 REQUIRED_VARS = {
     "cid", "provider", "type"
 }
+
+def validate_user(user, self):
+    if user.username not in BULK_SCRIPT_ALLOWED_USERS:
+        return False
+    else:
+        self.log_warning(f"bulk---{BULK_SCRIPT_ALLOWED_USERS}")
+        return True
 
 def get_provider_by_name(name: str):
     try:

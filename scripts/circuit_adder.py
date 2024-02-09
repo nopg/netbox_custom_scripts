@@ -2,8 +2,9 @@ from circuits.choices import CircuitStatusChoices
 from circuits.models import CircuitType, Provider, ProviderNetwork
 from dcim.models import Cable, Device, Interface, RearPort, Site
 from extras.scripts import BooleanVar, ChoiceVar, FileVar, IntegerVar, ObjectVar, Script, StringVar
+from utilities.exceptions import AbortScript
 
-from local.utils import load_data_from_csv, prepare_netbox_data, main_circuit_entry, main_circuits_loop
+from local.utils import load_data_from_csv, prepare_netbox_data, main_circuit_entry, main_circuits_loop, validate_user
 
 
 class SingleCircuit(Script):
@@ -158,12 +159,17 @@ class BulkCircuits(Script):
 
     # Run
     def run(self, data, commit):
+        allowed = validate_user(user=self.request.user, self=self)
+        if not allowed:
+            raise AbortScript(f"User '{self.request.user}' does not have permission to run this script.")
+        
         csv_data = load_data_from_csv(data["bulk_circuits"])
         netbox_data = prepare_netbox_data(csv_data)
         # return pretty_repr(circuit_data)
 
         main_circuits_loop(netbox_data=netbox_data, overwrite=data['overwrite'], self=self)
         # log final job status as failed/completed better (abortscript)
-
+        
 script_order = (SingleCircuit, BulkCircuits)
-name = "NICE InContact Circuit Manager"
+name = "NICE InContact Single Circuit Manager"
+
