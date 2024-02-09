@@ -31,6 +31,8 @@ HEADER_MAPPING = {
     "Comments": "comments",
     "Contacts": "contacts",
     "Tags": "tags",
+    "Patch Panel": "pp",
+    "PP Port": "pp_info",
 }
 
 REQUIRED_VARS = {
@@ -91,19 +93,6 @@ def get_interface_by_name(name: str, device: Device = None):
     
     return interface
 
-def validate_row(row: dict) -> bool | str:
-    missing = []
-    error = False
-
-    for var in REQUIRED_VARS:
-        if row.get(var) is None:
-            missing.append(var)
-    if missing:
-        columns = "\, ".join(missing)
-        error = f"{row['cid']} is missing required values(s): {columns}, skipping."
-
-    return error
-
 def load_data_from_csv(csv_file) -> list[dict]:
     circuits_csv = csv.DictReader(codecs.iterdecode(csv_file, "utf-8"))
     csv_data = []
@@ -120,6 +109,19 @@ def load_data_from_csv(csv_file) -> list[dict]:
         csv_data.append(csv_row)
 
     return csv_data
+
+def validate_row(row: dict) -> bool | str:
+    missing = []
+    error = False
+
+    for var in REQUIRED_VARS:
+        if row.get(var) is None:
+            missing.append(var)
+    if missing:
+        columns = "\, ".join(missing)
+        error = f"'{row.get('cid')}' is missing required values(s): {columns}, skipping."
+
+    return error
 
 def prepare_netbox_row(row: dict):
     provider = get_provider_by_name(name=row["provider"])

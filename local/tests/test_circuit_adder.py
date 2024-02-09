@@ -216,6 +216,62 @@ class CircuitAdderTestCase(TestCase):
         self.assertIsInstance(csv_data, list)
         self.assertIsInstance(csv_data[0], dict)
 
+    def test_validate_row(self):
+        row = {
+            "cid": "Circuit Test",
+            "provider": "Provider 1",
+            "type": "Circuit-Type 1",
+            "side_a": "Site 1",
+            "device": "Device 1",
+            "interface": "Interface 1",
+            "side_z": "Provider-Network 1",
+            "description": "Description 1",
+            "install_date": "",
+            "cir": "10485760",
+            "comments": "",
+            "contacts": "",
+            "tags": "",
+        }
+        skip = validate_row(row)
+        self.assertFalse(skip)
+
+    def test_validate_row_fail_1(self):
+        row = {
+            # Missing cid
+            "provider": "Provider 1",
+            "type": "Circuit-Type 1",
+            "side_a": "Site 1",
+            "device": "Device 1",
+            "interface": "Interface 1",
+            "side_z": "Provider-Network 1",
+            "description": "Description 1",
+            "install_date": "",
+            "cir": "10485760",
+            "comments": "",
+            "contacts": "",
+            "tags": "",
+        }
+        skip = validate_row(row)
+        self.assertTrue(skip)
+
+    def test_validate_row_fail_2(self):
+        row = {
+            "provider": "Provider 1",
+            # Missing Circuit Type
+            "side_a": "Site 1",
+            "device": "Device 1",
+            "interface": "Interface 1",
+            "side_z": "Provider-Network 1",
+            "description": "Description 1",
+            "install_date": "",
+            "cir": "10485760",
+            "comments": "",
+            "contacts": "",
+            "tags": "",
+        }
+        skip = validate_row(row)
+        self.assertTrue(skip)
+
     def test_prepare_netbox_row(self):
         row = {
             "cid": "Circuit Test",
