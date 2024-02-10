@@ -38,14 +38,17 @@ class CircuitAdderTestCase(TestCase):
             "type": "Circuit-Type 1",
             "description": "My description 1",
             "install_date": "",
+            "termination_date": "",
             "comments": "",
-            "contacts": "",
-            "tags": "",
-            "side_a": "",
-            "side_z": "",
+            "side_a_site": "",
+            "side_a_providernetwork": "",
+            "side_z_site": "",
+            "side_z_providernetwork": "",
             "device": "",
             "interface": "",
             "cir": 1000,
+            "pp": "",
+            "pp_port": "",
         }
 
         cls.new_circuit_add_1 = {
@@ -54,14 +57,19 @@ class CircuitAdderTestCase(TestCase):
             "type": "Circuit-Type 1",
             "description": "My description 1",
             "install_date": "",
+            "termination_date": "",
             "comments": "",
             "contacts": "",
             "tags": "",
-            "side_a": "Site 1",
-            "side_z": "Provider-Network 1",
+            "side_a_site": "Site 1",
+            "side_a_providernetwork": "",
+            "side_z_site": "",
+            "side_z_providernetwork": "Provider-Network 1",
             "device": "Device 1",
             "interface": "Interface 1",
             "cir": 1000,
+            "pp": "",
+            "pp_port": "",
         }
 
         cls.new_circuit_add_2 = {
@@ -70,14 +78,19 @@ class CircuitAdderTestCase(TestCase):
             "type": "Circuit-Type 2",
             "description": "My description 2",
             "install_date": "",
+            "termination_date": "",
             "comments": "",
             "contacts": "",
             "tags": "",
-            "side_a": "",
-            "side_z": "",
+            "side_a_site": "",
+            "side_a_providernetwork": "",
+            "side_z_site": "",
+            "side_z_providernetwork": "",
             "device": "",
             "interface": "",
             "cir": 1000,
+            "pp": "",
+            "pp_port": "",
         }
 
     def setUp(self):
@@ -221,16 +234,21 @@ class CircuitAdderTestCase(TestCase):
             "cid": "Circuit Test",
             "provider": "Provider 1",
             "type": "Circuit-Type 1",
-            "side_a": "Site 1",
             "device": "Device 1",
             "interface": "Interface 1",
-            "side_z": "Provider-Network 1",
+            "side_a_site": "Site 1",
+            "side_a_providernetwork": "",
+            "side_z_site": "",
+            "side_z_providernetwork": "Provider-Network 1",
             "description": "Description 1",
             "install_date": "",
+            "termination_date": "",
             "cir": "10485760",
             "comments": "",
             "contacts": "",
             "tags": "",
+            "pp": "",
+            "pp_port": "",
         }
         skip = validate_row(row)
         self.assertFalse(skip)
@@ -240,16 +258,21 @@ class CircuitAdderTestCase(TestCase):
             # Missing cid
             "provider": "Provider 1",
             "type": "Circuit-Type 1",
-            "side_a": "Site 1",
             "device": "Device 1",
             "interface": "Interface 1",
-            "side_z": "Provider-Network 1",
+            "side_a_site": "Site 1",
+            "side_a_providernetwork": "",
+            "side_z_site": "",
+            "side_z_providernetwork": "Provider-Network 1",
             "description": "Description 1",
             "install_date": "",
+            "termination_date": "",
             "cir": "10485760",
             "comments": "",
             "contacts": "",
             "tags": "",
+            "pp": "",
+            "pp_port": "",
         }
         skip = validate_row(row)
         self.assertTrue(skip)
@@ -258,16 +281,21 @@ class CircuitAdderTestCase(TestCase):
         row = {
             "provider": "Provider 1",
             # Missing Circuit Type
-            "side_a": "Site 1",
             "device": "Device 1",
             "interface": "Interface 1",
-            "side_z": "Provider-Network 1",
+            "side_a_site": "Site 1",
+            "side_a_providernetwork": "",
+            "side_z_site": "",
+            "side_z_providernetwork": "Provider-Network 1",
             "description": "Description 1",
             "install_date": "",
+            "termination_date": "",
             "cir": "10485760",
             "comments": "",
             "contacts": "",
             "tags": "",
+            "pp": "",
+            "pp_port": "",
         }
         skip = validate_row(row)
         self.assertTrue(skip)
@@ -277,16 +305,21 @@ class CircuitAdderTestCase(TestCase):
             "cid": "Circuit Test",
             "provider": "Provider 1",
             "type": "Circuit-Type 1",
-            "side_a": "Site 1",
             "device": "Device 1",
             "interface": "Interface 1",
-            "side_z": "Provider-Network 1",
+            "side_a_site": "Site 1",
+            "side_a_providernetwork": "",
+            "side_z_site": "",
+            "side_z_providernetwork": "Provider-Network 1",
             "description": "Description 1",
             "install_date": "",
+            "termination_date": "",
             "cir": "10485760",
             "comments": "",
             "contacts": "",
             "tags": "",
+            "pp": "",
+            "pp_port": "",
         }
 
         circuit_data = prepare_netbox_row(row)
@@ -297,23 +330,28 @@ class CircuitAdderTestCase(TestCase):
             "cid": "Circuit Test",
             "provider": "Provider Missing",
             "type": "Circuit-Type 1",
-            "side_a": "Site 1",
             "device": "Device 1",
             "interface": "Interface 1",
-            "side_z": "Provider-Network 1",
+            "side_a_site": "Site 1",
+            "side_a_providernetwork": "",
+            "side_z_site": "",
+            "side_z_providernetwork": "Provider-Network 1",
             "description": "Description 1",
             "install_date": "",
+            "termination_date": "",
             "cir": "10485760",
             "comments": "",
             "contacts": "",
             "tags": "",
+            "pp": "",
+            "pp_port": "",
         }
 
         circuit_data = prepare_netbox_row(row)
         self.assertTrue(circuit_data["skip"])   # Invalid Circuit
 
     def test_prepare_netbox_data(self):
-        netbox_data = prepare_netbox_data(self.csv_data)
+        netbox_data = prepare_netbox_data(self.csv_data, overwrite=False, allow_cable_skip=True)
 
         self.assertFalse(netbox_data[0]["skip"])
         self.assertTrue(netbox_data[1]["skip"])     # Missing Provider
@@ -321,12 +359,12 @@ class CircuitAdderTestCase(TestCase):
         self.assertFalse(netbox_data[3]["skip"])
 
     def test_create_circuit_from_data(self):
-        netbox_data = prepare_netbox_data(self.csv_data)[0] # Only need 1 circuit
+        netbox_data = prepare_netbox_data(self.csv_data, overwrite=False, allow_cable_skip=True)[0] # Only need 1 circuit
         new_circuit = create_circuit_from_data(netbox_data)
         self.assertIsInstance(new_circuit, Circuit)
 
     def test_save_circuit(self):
-        netbox_data = prepare_netbox_data(self.csv_data)[0]
+        netbox_data = prepare_netbox_data(self.csv_data, overwrite=False, allow_cable_skip=True)[0]
         new_circuit = create_circuit_from_data(netbox_data)
 
         with self.assertLogs(
@@ -398,7 +436,7 @@ class CircuitAdderTestCase(TestCase):
         netbox_row = prepare_netbox_row(self.new_circuit_add_1)
         circuit = build_circuit(SingleCircuit(), netbox_row)
 
-        termination_a = build_terminations(SingleCircuit(), netbox_row, circuit)
+        termination_a, termination_z = build_terminations(SingleCircuit(), netbox_row, circuit)
 
         self.assertIsInstance(termination_a, CircuitTermination)
 
@@ -409,14 +447,19 @@ class CircuitAdderTestCase(TestCase):
             "type": "Circuit-Type 2",
             "description": "My description 2",
             "install_date": "",
+            "termination_date": "",
             "comments": "",
             "contacts": "",
             "tags": "",
-            "side_a": "Site 1",
-            "side_z": "",
+            "side_a_site": "Site 1",
+            "side_a_providernetwork": "",
+            "side_z_site": "",
+            "side_z_providernetwork": "",
             "device": "Device 1",
             "interface": "",
             "cir": 1000,
+            "pp": "",
+            "pp_port": "",
         }
         netbox_row = prepare_netbox_row(new_circuit_add_missing_interface_1)
         circuit = build_circuit(SingleCircuit(), netbox_row)
@@ -435,14 +478,19 @@ class CircuitAdderTestCase(TestCase):
             "type": "Circuit-Type 2",
             "description": "My description 2",
             "install_date": "",
+            "termination_date": "",
             "comments": "",
             "contacts": "",
             "tags": "",
-            "side_a": "Site Missing",
-            "side_z": "",
+            "side_a_site": "Site Missing",
+            "side_a_providernetwork": "",
+            "side_z_site": "",
+            "side_z_providernetwork": "",
             "device": "Device 1",
             "interface": "",
             "cir": 1000,
+            "pp": "",
+            "pp_port": "",
         }
         netbox_row = prepare_netbox_row(new_circuit_add_missing_site)
         circuit = build_circuit(SingleCircuit(), netbox_row)
@@ -461,14 +509,19 @@ class CircuitAdderTestCase(TestCase):
             "type": "Circuit-Type 2",
             "description": "My description 2",
             "install_date": "",
+            "termination_date": "",
             "comments": "",
             "contacts": "",
             "tags": "",
-            "side_a": "Site 1",
-            "side_z": "Provider Network Missing",
+            "side_a_site": "Site 1",
+            "side_a_providernetwork": "",
+            "side_z_site": "",
+            "side_z_providernetwork": "Provider-Network Missing",
             "device": "Device 1",
             "interface": "Interface 1",
             "cir": 1000,
+            "pp": "",
+            "pp_port": "",
         }
         netbox_row = prepare_netbox_row(new_circuit_add_missing_provider_network)
         circuit = build_circuit(SingleCircuit(), netbox_row)

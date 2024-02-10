@@ -3,6 +3,7 @@ pull:
 	scp nicnb:/opt/netbox/netbox/reports/report_circuit_validations.py ./reports/
 	scp nicnb:/opt/netbox/netbox/local/tests/test_circuit_adder.py ./local/tests/
 	scp nicnb:/opt/netbox/netbox/local/utils.py ./local/
+	scp nicnb:/opt/netbox/netbox/local/main.py ./local/
 	scp nicnb:/opt/netbox/netbox/local/validators.py ./local/
 
 push_csv_tests:

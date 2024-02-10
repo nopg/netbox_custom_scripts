@@ -1,0 +1,4 @@
+Change to test config	export NETBOX_CONFIGURATION=netbox.configuration_testing
+Ensure db permissions	ALTER DATABASE netbox OWNER TO netbox;
+	ALTER USER netbox CREATEDB;
+Run Test	./manage.py test local.tests --keepdb -v 2

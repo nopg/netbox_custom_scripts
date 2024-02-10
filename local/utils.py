@@ -22,29 +22,34 @@ HEADER_MAPPING = {
     "Circuit ID": "cid",
     "Provider": "provider",
     "Circuit Type": "type",
-    "Side A": "side_a",
-    "Device": "device",
-    "Interface": "interface",
-    "Side Z": "side_z",
-    "Description": "description",
-    "Date Installed": "install_date", # UPDATE TO date_installed
-    "Commit Rate (Kbps)": "cir",
-    "Comments": "comments",
-    "Contacts": "contacts",
-    "Tags": "tags",
+    "Side A Site": "side_a_site",
+    "Side A Provider Network": "side_a_providernetwork",
     "Patch Panel": "pp",
     "PP Port": "pp_port",
+    "Device": "device",
+    "Interface": "interface",
+    "Side Z Site": "side_z_site",
+    "Side Z Provider Network": "side_z_providernetwork",
+    "Description": "description",
+    "Install Date": "install_date",
+    "Termination Date": "termination_date",
+    "Commit Rate (Kbps)": "cir",
+    "Comments": "comments",
+    "Patch Panel Z": "pp_z",
+    "PP Port Z": "pp_port_z",
+    "Device Z": "device_z",
+    "Interface Z": "interface_z",
+
 }
 
 REQUIRED_VARS = {
     "cid", "provider", "type"
 }
 
-def validate_user(user, self):
+def validate_user(user):
     if user.username not in BULK_SCRIPT_ALLOWED_USERS:
         return False
     else:
-        self.log_warning(f"bulk---{BULK_SCRIPT_ALLOWED_USERS}")
         return True
 
 def get_provider_by_name(name: str):
@@ -101,11 +106,11 @@ def get_interface_by_name(name: str, device: Device = None):
     
     return interface
 
-def get_side_a(side_a: Site | ProviderNetwork) -> Site | ProviderNetwork:
-    ...
-
-def get_side_z(side_z: Site | ProviderNetwork) -> Site | ProviderNetwork:
-    ...
+def get_side_by_name(side_site, side_providernetwork) -> Site | ProviderNetwork:
+    side = get_site_by_name(side_site)
+    if not side:
+        side = get_provider_network_by_name(side_providernetwork)
+    return side
 
 def load_data_from_csv(csv_file) -> list[dict]:
     circuits_csv = csv.DictReader(codecs.iterdecode(csv_file, "utf-8"))
@@ -114,17 +119,22 @@ def load_data_from_csv(csv_file) -> list[dict]:
     # Update Dictionary Keys / Headers
     for row in circuits_csv:
         csv_row = {}
+        for old_header, value in row.items():
+            if old_header in HEADER_MAPPING:
+                csv_row[HEADER_MAPPING[old_header]] = value
+        # Add any missing fields we may check later
+        for header in HEADER_MAPPING:
+            if header not in csv_row:
+                csv_row[header] = ""
 
-        # Update_vars()?
-        for k,v in row.items():
-            if k in HEADER_MAPPING:
-                csv_row[HEADER_MAPPING[k]] = v
-       
         csv_data.append(csv_row)
 
     return csv_data
 
 def validate_row(row: dict) -> bool | str:
+    """
+    Validate we have the required variables
+    """
     missing = []
     error = False
 
@@ -133,51 +143,88 @@ def validate_row(row: dict) -> bool | str:
             missing.append(var)
     if missing:
         columns = "\, ".join(missing)
-        error = f"'{row.get('cid')}' is missing required values(s): {columns}, skipping."
+        error = f"'{row.get('cid')}' is missing required values(s): {columns}, skipping.\n"
+    
+    if row["side_a_site"] and row["side_a_providernetwork"]:
+        error += f"Circuit {row['cid']} cannot have Side A Site AND Side A Provider Network Simultaneously\n"
+    if row["side_z_site"] and row["side_z_providernetwork"]:
+        error += f"Circuit {row['cid']} cannot have Side Z Site AND Side Z Provider Network Simultaneously\n"
 
     return error
 
 def prepare_netbox_row(row: dict):
-    provider = get_provider_by_name(name=row["provider"])
-    circuit_type = get_circuit_type_by_name(name=row["type"])
-    site = get_site_by_name(name=row["side_a"])
-    #side_a = get_side_a(side_a=row["side_a"])
-    provider_network = get_provider_network_by_name(name=row["side_z"])
-    #side_z = get_side_z(side_a=row["side_a"])
+    """
+    Help convert CSV data into Netbox Models where necessary
+    """
+
+    row["provider"] = get_provider_by_name(name=row["provider"])
+    row["type"] = get_circuit_type_by_name(name=row["type"])
+    skip = validate_row(row)
+
+    side_a = get_side_by_name(row["side_a_site"] , row["side_a_providernetwork"])
+    side_z = get_side_by_name(row["side_z_site"] , row["side_z_providernetwork"])
+    if type(side_a) == Site:
+        site = side_a
+    else:
+        if not skip:
+            skip = ""
+        skip += "Side Z to Device/Patch Panel without Side A Device/Patch Panel is currently unsupported."
+        site = None
+
     device = get_device_by_name(name=row["device"], site=site)
     interface = get_interface_by_name(name=row["interface"], device=device)
     pp = get_device_by_name(name=row["pp"], site=site)
+
+    ### PP PORT FRONT/REAR
     pp_port = get_interface_by_name(name=row["pp_port"], device=pp)
+    ### PP PORT TYPE
+
+    # Check circuit_type == P2P
+    # TBD for P2P Circuits
+    device_z = None
+    interface_z = None
+    pp_z = None
+    pp_port_z = None
 
     netbox_row = {
         "cid": row["cid"],
-        "provider": provider,
-        "type": circuit_type,
-        "side_a": site,             # SIDE A ALWAYS SITE ?!
-        #"side_a": side_a,
+        "provider": row["provider"],
+        "type": row["type"],
+        "side_a": side_a,
         "device": device,
         "interface": interface,
-        "side_z": provider_network, # SIDE Z ALWAYS PROVIDER NETWORK ?!
-        #"side_z": side_z,
-        "description": row["description"],
-        "install_date": row["install_date"],
-        "cir": row["cir"] if row["cir"] else None,
-        "comments": row["comments"],
-        "contacts": row["contacts"],
-        "tags": row["tags"],
         "pp": pp,
         "pp_port": pp_port,
+        "side_z": side_z,
+        "description": row["description"],
+        "install_date": row["install_date"],
+        "termination_date": row["termination_date"],
+        "cir": row["cir"] if row["cir"] else None,
+        "comments": row["comments"],
+        "device_z": device_z,
+        "interface_z": interface_z,
+        "pp_z": pp_z,
+        "pp_port_z": pp_port_z,
     }
 
-    netbox_row["skip"] = validate_row(netbox_row)
+    netbox_row["skip"] = skip#validate_row(netbox_row)
 
     return netbox_row
 
-def prepare_netbox_data(csv_data: list[dict]) -> dict:
+def prepare_netbox_data(csv_data: list[dict], overwrite: bool, allow_cable_skip: bool) -> dict:
     circuit_data = []
     for row in csv_data:
-        circuit_data.append(prepare_netbox_row(row=row))
+        row["overwrite"] = overwrite
+        row["allow_cable_skip"] = allow_cable_skip
+        row = prepare_netbox_row(row=row)
+        circuit_data.append(row)
     return circuit_data
+
+
+
+
+
+
 
 def create_circuit_from_data(netbox_row: dict[str,any]) -> Circuit:
     new_circuit = Circuit(
@@ -308,21 +355,3 @@ def build_pp_cable(self: Script, netbox_row: dict, circuit: Circuit) -> Cable:
         if circuit.termination_a:
             ct_side_a = circuit.termination_a
         build_cable(self, side_a=netbox_row["pp_port"], side_b=ct_side_a)
-
-def main_circuit_entry(self: Script, netbox_row: dict[str, any], overwrite: bool):    
-    circuit = build_circuit(self, netbox_row, overwrite)
-    ct_side_a, ct_side_z = build_terminations(self, netbox_row, circuit)
-
-    build_pp_cable(self, netbox_row, circuit)
-
-    if netbox_row["interface"]:
-        build_cable(self, side_a=netbox_row["interface"], side_b=netbox_row["pp_front_port"])
-    else:
-        self.log_warning(f"Skipping cable creation to device interface due to missing interface on device '{circuit.cid}")
-
-def main_circuits_loop(self: Script, netbox_data: list[dict[str, any]], overwrite: bool = False) -> None:
-    for netbox_row in netbox_data:
-        if netbox_row["skip"]:
-            self.log_warning(f"Skipping circuit \'{netbox_row['cid']}\' due to: {netbox_row['skip']}")
-        else:
-            main_circuit_entry(self, netbox_row, overwrite)
