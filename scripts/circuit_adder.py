@@ -1,10 +1,11 @@
 from circuits.choices import CircuitStatusChoices
 from circuits.models import CircuitType, Provider, ProviderNetwork
+from dcim.choices import CableTypeChoices
 from dcim.models import Cable, Device, Interface, RearPort, Site
 from extras.scripts import BooleanVar, ChoiceVar, FileVar, IntegerVar, ObjectVar, Script, StringVar
 from utilities.exceptions import AbortScript
 
-from local.utils import load_data_from_csv, prepare_netbox_data, validate_user
+from local.utils import load_data_from_csv, prepare_netbox_data, validate_user, get_side_by_name, prepare_pp_ports
 from local.main import main_circuits_bulk, main_circuit_single
 
 
@@ -27,20 +28,20 @@ class SingleCircuit(Script):
                 ("provider", "type", "cid", "description", "status"),
             ),
             (
-                "Side A (Choose only 1)",
+                "Side A (NICE Side)",
                 ("side_a_site", "side_a_providernetwork"),
             ),
             (
-                "Side Z (Choose only 1)",
+                "Side Z (Carrier Side)",
                 ("side_z_site", "side_z_providernetwork"),
             ),
-            ("Cables", ("pp", "pp_port", "device", "interface")),
+            ("Cables", ("pp", "pp_port", "device", "interface", "cable_type")),
             (
                 "Other",
-               ("cir", "install_date", "termination_date", "comment", "pp_or_device"),
+               ("cir", "install_date", "termination_date", "comment", "cable_direct_to_device", "cross_connect"),
             ),
-            ("P2P Circuits", ("pp_z", "pp_port_z", "device_z", "interface_z")),
-            ("Advanced Options", ("overwrite",)),
+            ("P2P Circuits", ("pp_z", "pp_z_port", "device_z", "interface_z", "cable_z_type")),
+            ("Advanced Options", ("overwrite","create_pp_port", "create_pp_z_port")),
         )
 
     # Display Fields
@@ -94,25 +95,37 @@ class SingleCircuit(Script):
         label="Provider",
         required=False,
     )
-    pp = ObjectVar(model=Device, label="Patch Panel", required=False)
+    pp = ObjectVar(model=Device, label="Patch Panel", required=False, query_params={"site_id": "$side_a_site"})
     pp_port = ObjectVar(model=RearPort, label="Patch Panel Port", required=False, query_params={"device_id": "$pp"})
 
-    device = ObjectVar(model=Device, label="Device", required=False)#, query_params={"site_id": "$side_a"})
+    device = ObjectVar(model=Device, label="Device", required=False, query_params={"site_id": "$side_a_site"})
     interface = ObjectVar(
         model=Interface,
         label="Interface",
         required=False,
         query_params={"device_id": "$device"},
     )
+    cable_type = ChoiceVar(
+        CableTypeChoices,
+        default=CableTypeChoices.TYPE_SMF,
+        label="Cable Type",
+        required=False,     
+    )
 
     pp_z = ObjectVar(model=Device, label="Patch Panel Side Z", required=False)
-    pp_port_z = ObjectVar(model=RearPort, label="Patch Panel Port Side Z", required=False, query_params={"device_id": "$pp_z"})
-    device_z = ObjectVar(model=Device, label="Device Side Z", required=False)#, query_params={"site_id": "$side_a"})
+    pp_z_port = ObjectVar(model=RearPort, label="Patch Panel Port Side Z", required=False, query_params={"device_id": "$pp_z"})
+    device_z = ObjectVar(model=Device, label="Device Side Z", required=False, query_params={"site_id": "$side_z_site"})
     interface_z = ObjectVar(
         model=Interface,
         label="Interface Side Z",
         required=False,
         query_params={"device_id": "$device_z"},
+    )
+    cable_z_type = ChoiceVar(
+        CableTypeChoices,
+        default=CableTypeChoices.TYPE_SMF,
+        label="Cable Type Side Z",
+        required=False,     
     )
 
     comment = StringVar(
@@ -128,12 +141,23 @@ class SingleCircuit(Script):
         label="Termination Date (YYYY-MM-DD)",
         required=True,
     )
-
-    overwrite = BooleanVar(description="Overwrite existing circuits? (same Ciruit ID & Provider == Same Circuit)", default=True)
-    pp_or_device = BooleanVar(
+    cross_connect = StringVar(
+        label="Cross Connect ID/Info",
+        required=False,
+    )
+    overwrite = BooleanVar(description="Overwrite existing circuits? (same Ciruit ID & Provider == Same Circuit)", default=False)
+    cable_direct_to_device = BooleanVar(
         label="Cable Direct To Device?",
         description="Check this box ONLY if the Circuit does not flow through a Patch Panel",
         default=False
+    )
+    create_pp_port = BooleanVar(
+        label = "Create Patch Panel Interface?",
+        default=False,
+    )
+    create_pp_z_port = BooleanVar(
+        label = "Create Patch Panel (Z Side) Interface?",
+        default=False,
     )
 
     # Run SingleCircuit
@@ -144,6 +168,24 @@ class SingleCircuit(Script):
         if data["side_z_site"] and data["side_z_providernetwork"]:
             raise AbortScript(f"Circuit {data['cid']} cannot have Side Z Site AND Side Z Provider Network Simultaneously")
         
+        # FIX BELOW / Create FUNCITON?
+        side_a = get_side_by_name(data["side_a_site"], data["side_a_providernetwork"])
+        side_z = get_side_by_name(data["side_z_site"], data["side_z_providernetwork"])
+        if type(side_a) == Site:
+            site = side_a
+        elif type(side_a) == ProviderNetwork:
+            if not skip:
+                skip = ""
+            skip += "\nSide Z to Device/Patch Panel without Side A Device/Patch Panel is currently unsupported."
+            site = None
+        else:
+            site = None
+        data["side_a"] = side_a
+        data["side_z"] = side_z
+        
+        data["pp_frontport"] = prepare_pp_ports(data["pp_port"])
+        data["pp_z_frontport"] = prepare_pp_ports(data["pp_z_port"])
+
         # set rear/front port (create function)
         rear_port = data.get("pp_port")
         # check date is real (create function)
@@ -155,7 +197,7 @@ class SingleCircuit(Script):
         data["allow_cable_skip"] = False
 
         # Run Script
-        output = main_circuit_single(netbox_row=data, self=self)
+        output = main_circuit_single(netbox_row=data, logger=self)
         if output:
             return output
         # log final job status as failed/completed better (abortscript)
@@ -187,7 +229,7 @@ class BulkCircuits(Script):
     )
 
     overwrite = BooleanVar(
-        description="Overwrite existing circuits? (same Ciruit ID & Provider == Same Circuit)", default=True
+        description="Overwrite existing circuits? (same Ciruit ID & Provider == Same Circuit)", default=False
     )
 
     # Run BulkCircuits
@@ -210,7 +252,7 @@ class BulkCircuits(Script):
 
 
         # Run Script
-        main_circuits_bulk(circuits_csv=data["bulk_circuits"], overwrite=data["overwrite"], self=self)
+        main_circuits_bulk(circuits_csv=data["bulk_circuits"], overwrite=data["overwrite"], logger=self)
         
         # log final job status as failed/completed better (abortscript)
 

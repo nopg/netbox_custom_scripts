@@ -1,10 +1,12 @@
 import codecs, csv, sys
 from circuits.choices import CircuitStatusChoices
 from circuits.models import Circuit, CircuitType, Provider, ProviderNetwork, CircuitTermination
-from dcim.models import Cable, Device, Interface, Site
+from dcim.choices import CableTypeChoices
+from dcim.models import Cable, Device, Interface, RearPort, Site
 from extras.scripts import Script
 
 from django.core.exceptions import ValidationError
+from utilities.choices import ColorChoices
 from utilities.exceptions import AbortScript
 
 from local.validators import MyCircuitValidator
@@ -36,15 +38,34 @@ HEADER_MAPPING = {
     "Commit Rate (Kbps)": "cir",
     "Comments": "comments",
     "Patch Panel Z": "pp_z",
-    "PP Port Z": "pp_port_z",
+    "PP Port Z": "pp_z_port",
     "Device Z": "device_z",
     "Interface Z": "interface_z",
-
+    "Cable Direct To Device": "cable_direct_to_device",
+    "Cross Connect": "cross_connect",
+    "Cable Type": "cable_type",
 }
 
 REQUIRED_VARS = {
     "cid", "provider", "type"
 }
+
+CABLE_COLORS = {
+    CableTypeChoices.TYPE_SMF: ColorChoices.COLOR_YELLOW,
+    CableTypeChoices.TYPE_SMF_OS1: ColorChoices.COLOR_YELLOW,
+    CableTypeChoices.TYPE_SMF_OS2: ColorChoices.COLOR_YELLOW,
+    CableTypeChoices.TYPE_MMF: ColorChoices.COLOR_AQUA,
+    CableTypeChoices.TYPE_MMF_OM1: ColorChoices.COLOR_AQUA,
+    CableTypeChoices.TYPE_MMF_OM2: ColorChoices.COLOR_AQUA,
+    CableTypeChoices.TYPE_MMF_OM3: ColorChoices.COLOR_AQUA,
+    CableTypeChoices.TYPE_MMF_OM4: ColorChoices.COLOR_AQUA,
+    CableTypeChoices.TYPE_MMF_OM5: ColorChoices.COLOR_AQUA,
+    CableTypeChoices.TYPE_CAT5: ColorChoices.COLOR_WHITE,
+    CableTypeChoices.TYPE_CAT5E: ColorChoices.COLOR_WHITE,
+    CableTypeChoices.TYPE_CAT6: ColorChoices.COLOR_WHITE,
+    CableTypeChoices.TYPE_CAT6A: ColorChoices.COLOR_WHITE,
+}
+
 
 def validate_user(user):
     if user.username not in BULK_SCRIPT_ALLOWED_USERS:
@@ -142,8 +163,8 @@ def validate_row(row: dict) -> bool | str:
         if row.get(var) is None:
             missing.append(var)
     if missing:
-        columns = "\, ".join(missing)
-        error = f"'{row.get('cid')}' is missing required values(s): {columns}, skipping.\n"
+        columns = ", ".join(missing)
+        error = f"'{row.get('cid')}' is missing required values(s): {columns}\n"
     
     if row["side_a_site"] and row["side_a_providernetwork"]:
         error += f"Circuit {row['cid']} cannot have Side A Site AND Side A Provider Network Simultaneously\n"
@@ -151,6 +172,19 @@ def validate_row(row: dict) -> bool | str:
         error += f"Circuit {row['cid']} cannot have Side Z Site AND Side Z Provider Network Simultaneously\n"
 
     return error
+
+def prepare_pp_ports(pp_rearport):
+    """
+    Get FrontPort associated with RearPort
+    """
+    if not isinstance(pp_rearport, RearPort):
+        return None
+    if pp_rearport.positions > 1:
+        raise AbortScript(f"RearPorts with multiple positions not yet implemented: RearPort: {pp_rearport}")
+    pp_frontport = pp_rearport.frontports.first()
+
+    return pp_frontport
+
 
 def prepare_netbox_row(row: dict):
     """
@@ -161,14 +195,22 @@ def prepare_netbox_row(row: dict):
     row["type"] = get_circuit_type_by_name(name=row["type"])
     skip = validate_row(row)
 
+    # # Single Circuits are NOT allowed to skip cable creation
+    # if not row.get("allow_cable_skip"):
+    #     row["allow_cable_skip"] = False
+    # if not row.get("overwrite"):
+    #     row["overwrite"] = False
+
     side_a = get_side_by_name(row["side_a_site"] , row["side_a_providernetwork"])
     side_z = get_side_by_name(row["side_z_site"] , row["side_z_providernetwork"])
     if type(side_a) == Site:
         site = side_a
-    else:
+    elif type(side_a) == ProviderNetwork:
         if not skip:
             skip = ""
-        skip += "Side Z to Device/Patch Panel without Side A Device/Patch Panel is currently unsupported."
+        skip += "\nSide Z to Device/Patch Panel without Side A Device/Patch Panel is currently unsupported."
+        site = None
+    else:
         site = None
 
     device = get_device_by_name(name=row["device"], site=site)
@@ -177,38 +219,48 @@ def prepare_netbox_row(row: dict):
 
     ### PP PORT FRONT/REAR
     pp_port = get_interface_by_name(name=row["pp_port"], device=pp)
+    pp_frontport = prepare_pp_ports(pp_port)
     ### PP PORT TYPE
 
     # Check circuit_type == P2P
     # TBD for P2P Circuits
     device_z = None
     interface_z = None
-    pp_z = None
-    pp_port_z = None
+    pp_z = get_device_by_name(name=row["pp_z"], site=site)
+    pp_z_port = get_interface_by_name(name=row["pp_z_port"], device=pp_z)
+    pp_z_frontport = prepare_pp_ports(pp_z_port)
 
     netbox_row = {
+        "allow_cable_skip": row.get("allow_cable_skip"),
+        "overwrite": row.get("overwrite"),
+        "cable_direct_to_device": row.get("cable_direct_to_device"),
         "cid": row["cid"],
         "provider": row["provider"],
         "type": row["type"],
-        "side_a": side_a,
-        "device": device,
-        "interface": interface,
-        "pp": pp,
-        "pp_port": pp_port,
-        "side_z": side_z,
         "description": row["description"],
         "install_date": row["install_date"],
         "termination_date": row["termination_date"],
         "cir": row["cir"] if row["cir"] else None,
         "comments": row["comments"],
+        "side_a": side_a,
+        "device": device,
+        "interface": interface,
+        "pp": pp,
+        "pp_port": pp_port,
+        "pp_frontport": pp_frontport,
+        "side_z": side_z,
         "device_z": device_z,
         "interface_z": interface_z,
         "pp_z": pp_z,
-        "pp_port_z": pp_port_z,
+        "pp_port_z": pp_z_port,
+        "pp_z_frontport": pp_z_frontport,
     }
 
     netbox_row["skip"] = skip#validate_row(netbox_row)
-
+    for k,v in netbox_row.items():
+        if k not in ("description", "comments", "install_date", "termination_date"):
+            if v == "":
+                netbox_row[k] = None
     return netbox_row
 
 def prepare_netbox_data(csv_data: list[dict], overwrite: bool, allow_cable_skip: bool) -> dict:
@@ -220,6 +272,15 @@ def prepare_netbox_data(csv_data: list[dict], overwrite: bool, allow_cable_skip:
         circuit_data.append(row)
     return circuit_data
 
+def save_cables(logger, *objects):
+    for obj in objects:
+        if obj:
+            try:
+                obj.full_clean()
+                obj.save()
+                logger.log_success(f"Saved: '{obj}'")
+            except Exception as e:
+                logger.log_failure(f"Unknown error saving {obj}: {e}")
 
 
 
@@ -306,6 +367,7 @@ def build_circuit(self: Script, netbox_row: dict[str,any], overwrite: bool = Fal
         )
         return None
 
+    # Don't save yet
     circuit = save_circuit(new_circuit, self)
     return circuit
 
@@ -342,16 +404,11 @@ def build_terminations(self: Script, netbox_row: dict[str,any], circuit: Circuit
 
     return termination_a, termination_z
 
-def save_cable(cable: Cable) -> None:
-    cable.full_clean()
-    cable.save()
+# def save_cable(cable: Cable) -> None:
+#     cable.full_clean()
+#     cable.save()
 
 def build_cable(self: Script, side_a: Interface, side_b) -> None:
     cable = Cable(a_terminations=[side_a], b_terminations=[side_b])
-    save_cable(cable)
-
-def build_pp_cable(self: Script, netbox_row: dict, circuit: Circuit) -> Cable:
-    if netbox_row["pp"] and netbox_row["pp_port"]:
-        if circuit.termination_a:
-            ct_side_a = circuit.termination_a
-        build_cable(self, side_a=netbox_row["pp_port"], side_b=ct_side_a)
+    #save_cable(cable)
+    return cable

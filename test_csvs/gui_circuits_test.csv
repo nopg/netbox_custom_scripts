@@ -1,6 +1,6 @@
-Circuit ID,Provider,Circuit Type,Side A,Device,Interface,Side Z,Description,Patch Panel,PP Port,Date Installed,Commit Rate (Kbps),Comments,Contacts,Tags
-mycircuit1,myprovider1,mycircuittype1,mysite1,mydevice1,myinterface1,myprovidernetwork1,mydesc1,,,,10485760,,,
-mycircuit2-skip,,notfound,,,,,,,,,,,,
-mycircuit3,myprovider1,mycircuittype1,mysite2,mydevice2,myinterface1,myprovidernetwork1,mydesc2,,,,1000000,,,
-mycircuit4,myprovider2,mycircuittype1,mysite2,mydevice2,missing interface,,,,,,55,,,
-mycircuit5,myprovider1,mycircuittype1,mysite1,,,,,mypatchpanel1,1,,,,,
+Circuit ID,Provider,Circuit Type,Side A Site,Side A Provider Network,Patch Panel,PP Port,Device,Interface,Side Z Site,Side Z Provider Network,Description,Patch Panel,PP Port,Install Date,Termination Date,Commit Rate (Kbps),Comments,Patch Panel Z,PP Port Z,Device Z,Interface Z,Cable Direct To Device
+mycircuit1,myprovider1,mycircuittype1,mysite1,,,,mydevice1,myinterface1,,myprovidernetwork1,mydesc1,,,,,10485760,,,,,,TRUE
+mycircuit2-skip,,notfound,,,,,,,,,,,,,,,,,,,,TRUE
+mycircuit3,myprovider1,mycircuittype1,mysite2,,,,mydevice2,myinterface1,,myprovidernetwork1,mydesc2,,,,,1000000,,,,,,TRUE
+mycircuit4,myprovider2,mycircuittype1,mysite2,,,,mydevice2,missing interface,,,,,,,,55,,,,,,
+mycircuit5,myprovider1,mycircuittype1,mysite1,,,,,,,,,mypatchpanel1,1,,,,,,,,,
