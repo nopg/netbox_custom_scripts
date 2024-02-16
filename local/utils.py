@@ -1,4 +1,5 @@
-import codecs, csv, sys
+import codecs, csv, datetime
+
 from circuits.choices import CircuitStatusChoices
 from circuits.models import Circuit, CircuitType, Provider, ProviderNetwork, CircuitTermination
 from dcim.choices import CableTypeChoices
@@ -10,7 +11,6 @@ from utilities.choices import ColorChoices
 from utilities.exceptions import AbortScript
 
 from local.validators import MyCircuitValidator
-
 
 # Type Hinting
 from django.core.files.uploadedfile import InMemoryUploadedFile
@@ -66,7 +66,14 @@ CABLE_COLORS = {
     CableTypeChoices.TYPE_CAT6A: ColorChoices.COLOR_WHITE,
 }
 
-
+def validate_date(date_str: str) -> None:
+    try:
+        date = datetime.date.fromisoformat(date_str)
+        if date.year >= 2026 or date.year <= 1980:
+            raise AbortScript(f"Date: {date_str} is outside constraints: Minimum year: 1980, Maximum year: 2026")
+    except ValueError:
+        raise AbortScript(f"Invalid date{date_str}), should be YYYY-MM-DD")
+    
 def validate_user(user):
     if user.username not in BULK_SCRIPT_ALLOWED_USERS:
         return False
@@ -272,15 +279,28 @@ def prepare_netbox_data(csv_data: list[dict], overwrite: bool, allow_cable_skip:
         circuit_data.append(row)
     return circuit_data
 
-def save_cables(logger, *objects):
+def save_cables(logger, *objects, allow_cable_skip: bool = False):
     for obj in objects:
         if obj:
             try:
                 obj.full_clean()
                 obj.save()
                 logger.log_success(f"Saved: '{obj}'")
+            except ValidationError as e:
+                error = ""
+                for msg in e.messages:
+                    if "Duplicate" in msg:
+                        error += f"Duplicate Cable found, unable to create Cable: {obj}\n"
+                    else:
+                        error += f"Validation Error saving {type(obj)}: {e.messages}\n"
+                
+                if not allow_cable_skip:
+                    raise AbortScript(error)
+                else:
+                    logger.log_failure(error)
             except Exception as e:
-                logger.log_failure(f"Unknown error saving {obj}: {e}")
+                logger.log_failure(f"Unknown error saving {type(obj)}: {e}")
+                logger.log_failure(f"Type: {type(e)}")
 
 
 
@@ -404,11 +424,7 @@ def build_terminations(self: Script, netbox_row: dict[str,any], circuit: Circuit
 
     return termination_a, termination_z
 
-# def save_cable(cable: Cable) -> None:
-#     cable.full_clean()
-#     cable.save()
-
 def build_cable(self: Script, side_a: Interface, side_b) -> None:
-    cable = Cable(a_terminations=[side_a], b_terminations=[side_b])
+    cable = Cable(a_terminations=[side_a], b_terminations=[side_b], type=CableTypeChoices.TYPE_SMF_OS2)
     #save_cable(cable)
     return cable

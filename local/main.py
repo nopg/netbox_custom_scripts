@@ -3,7 +3,7 @@ from dcim.models import Cable, Site
 from extras.scripts import Script
 from utilities.exceptions import AbortScript
 
-from local.utils import build_circuit, build_cable, build_terminations, load_data_from_csv, prepare_netbox_data, save_cables
+from local.utils import build_circuit, build_cable, build_terminations, load_data_from_csv, prepare_netbox_data, prepare_pp_ports,save_cables, validate_date
 
 
 def build_device_cable(logger, side_a, row):
@@ -38,6 +38,46 @@ def build_pp_cable(logger: Script, netbox_row: dict, circuit: Circuit) -> Cable 
             logger.log_warning(f"Unable to create cable to Patch Panel for circuit: {circuit.cid}")
         else:
             raise AbortScript(f"Error, not allowed to skip cable creation, and unable to create cable to Patch Panel on circuit: {circuit.cid}")
+
+
+def main_standard_circuit(data: dict[str,any], logger: Script) -> None:
+    """
+    Entry Point for Standard Single Circuit
+    """
+    validate_date(data["install_date"])
+    validate_date(data["termination_date"])
+
+    # Single Circuits are NOT allowed to skip cable creation
+    data["allow_cable_skip"] = False
+    
+    # FIX BELOW / Create FUNCITON?
+    data["side_a"] = data["side_a_site"]
+    data["side_z"] = data["side_z_providernetwork"]
+    data["pp_frontport"] = prepare_pp_ports(data["pp_port"])
+
+    # # set rear/front port (create function)
+    # rear_port = data.get("pp_port")
+    # # check date is real (create function)
+
+    # if rear_port:
+    #     data["pp_front_port"] = rear_port.frontports.all()[0]
+
+    # Begin:
+    circuit = build_circuit(logger, data)
+    ct_a, ct_z = build_terminations(logger, data, circuit)
+    
+    if data["cable_direct_to_device"] and (data["pp"] or data["pp_port"]):
+        raise AbortScript(f"Error: Cable Direct to Device chosen, but Patch Panel also Selected.")
+    elif not data["cable_direct_to_device"] and (not data["pp"] or not data["pp_port"]):
+        raise AbortScript(f"Error: Patch Panel missing, and 'Cable Direct to Device' is not checked.")
+    elif data["cable_direct_to_device"]:
+        pp_cable = None
+        device_cable = build_device_cable(logger, side_a=ct_a, row=data)
+    else:
+        pp_cable = build_pp_cable(logger, data, circuit)
+        device_cable = build_pp_device_cable(logger, data["pp_frontport"], data)
+    
+    save_cables(logger, pp_cable, device_cable)
 
 def main_circuit_single(logger: Script, netbox_row: dict[str, any]):
     """
