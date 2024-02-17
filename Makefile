@@ -7,6 +7,8 @@ pull:
 	scp nicnb:/opt/netbox/netbox/local/nice.py ./local/
 	scp nicnb:/opt/netbox/netbox/local/validators.py ./local/
 
+	scp nicnb:/opt/netbox/netbox/scripts/testing.py ./tests/
+
 push_csv_tests:
 	scp test_csvs/csv_bulk_circuits_test.csv nicnb:/opt/netbox/netbox/local/tests/
 

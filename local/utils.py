@@ -446,7 +446,7 @@ def build_terminations(self: Script, netbox_row: dict[str,any], circuit: Circuit
 
     return termination_a, termination_z
 
-def build_cable(self: Script, side_a: Interface, side_b, label: str = "") -> None:
+def build_cable(self: Script, side_a: CircuitTermination | Interface, side_b: Interface, label: str = "") -> None:
     cable = Cable(a_terminations=[side_a], b_terminations=[side_b], type=CableTypeChoices.TYPE_SMF_OS2, label=label)
     #save_cable(cable)
     return cable

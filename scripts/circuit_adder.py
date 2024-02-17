@@ -133,11 +133,13 @@ class StandardCircuit(Script):
         label="Install Date (YYYY-MM-DD)",
         description="Don't know? Use 2021-02-01",
         regex=YYYY_MM_DD,
+        default="2021-02-01",
         required=True,
     )
     termination_date = StringVar(
         label="Termination Date (YYYY-MM-DD)",
         regex=YYYY_MM_DD,
+        default="2021-02-01",
         required=True,
     )
     xconnect_id = StringVar(
@@ -154,11 +156,8 @@ class StandardCircuit(Script):
 
     # Run StandardCircuit
     def run(self, data, commit):
-        #output = main_standard_circuit(data=data, logger=self)
-        output = NiceCircuit(logger=self, **data)
-        output.create()
-        # if output:
-        #     return output
+        circuit = NiceCircuit(logger=self, **data)
+        circuit.create()
         # log final job status as failed/completed better (abortscript)
 
 
