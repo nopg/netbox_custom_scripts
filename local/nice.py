@@ -53,6 +53,7 @@ class NiceBulkCircuits(NiceCircuit):
         for row in csv_data:
             row["logger"] = logger
             if row.get("nice_script_type") == "Standard Circuit":
+                del row["nice_script_type"]
                 try:
                     circuits.append(NiceStandardCircuit(**row))
                 except TypeError as e:
@@ -111,7 +112,6 @@ class NiceStandardCircuit(NiceCircuit):
     cable_direct_to_device: bool = False
     allow_cable_skip: bool = False
     overwrite: bool = False
-    nice_script_type: str = "Standard Circuit"
 
     def _build_circuit(self) -> Circuit:
         return Circuit(
