@@ -9,7 +9,6 @@ from utilities.exceptions import AbortScript
 
 import local.utils as utils
 
-
 @dataclass
 class NiceCircuit:
     logger: Script
@@ -25,10 +24,85 @@ class NiceCircuit:
     comments: str
     device: Device
     interface: Interface
+    cable_type: str = ""
     xconnect_id: str = ""
     port_speed: int = 0
     upstream_speed: int = 0
     pp_info: str = ""
+
+    side_a_providernetwork: ProviderNetwork = None
+    side_z_site: Site = None
+    pp_z: Device = None
+    pp_z_port: RearPort = None
+    device_z: Device = None
+    interface_z: Interface = None
+
+@dataclass
+class NiceBulkCircuits(NiceCircuit):
+
+    @classmethod
+    def from_csv(self, logger: Script, filename):
+        circuits = []
+        try:
+            with open(filename, "rb") as f:
+                csv_data = utils.load_data_from_csv(csv_file=f)
+        except FileNotFoundError:
+            raise AbortScript(f"File '{filename}' not found!")
+        circuits = []
+        
+        for row in csv_data:
+            row["logger"] = logger
+            if row.get("nice_script_type") == "Standard Circuit":
+                try:
+                    circuits.append(NiceStandardCircuit(**row))
+                except TypeError as e:
+                    error = "Malformed/Unsupported CSV Columns:\n"
+                    error += f"{row}"
+                    error += f"\n{e}\n"
+                    print(error)
+                    print(dir(e))
+                    #print(f"{csv_data=}")
+            # self.logger.log_failure(error)
+            # self.logger.log_failure(f"{csv_data=}")
+        return circuits
+    
+        # allow_cable_skip: row.get("allow_cable_skip"),
+        # overwrite: row.get("overwrite"),
+        # cable_direct_to_device: row.get("cable_direct_to_device"),
+        # cid: row["cid"],
+        # provider: row["provider"],
+        # type: row["type"],
+        # description: row["description"],
+        # install_date: row["install_date"],
+        # termination_date: row["termination_date"],
+        # cir: row["cir"] if row["cir"] else None,
+        # comments: row["comments"],
+        # side_a: side_a,
+        # device: device,
+        # interface: interface,
+        # pp: pp,
+        # pp_port: pp_port,
+        # pp_frontport: pp_frontport,
+
+@dataclass
+class NiceStandardCircuit(NiceCircuit):
+    # logger: Script
+    # cid: str
+    # provider: Provider
+    # circuit_type: CircuitType
+    # side_a_site: Site
+    # side_z_providernetwork: ProviderNetwork
+    # description: str
+    # install_date: str
+    # termination_date: str
+    # cir: int
+    # comments: str
+    # device: Device
+    # interface: Interface
+    # xconnect_id: str = ""
+    # port_speed: int = 0
+    # upstream_speed: int = 0
+    # pp_info: str = ""
     pp: Device = None
     pp_port: RearPort = None
     pp_new_port: str = ""  # IMPLEMENT
@@ -37,6 +111,7 @@ class NiceCircuit:
     cable_direct_to_device: bool = False
     allow_cable_skip: bool = False
     overwrite: bool = False
+    nice_script_type: str = "Standard Circuit"
 
     def _build_circuit(self) -> Circuit:
         return Circuit(
@@ -187,31 +262,20 @@ class NiceCircuit:
         self.create_cables()
 
     def __post_init__(self):
-        utils.validate_date(self.install_date)
-        utils.validate_date(self.termination_date)
+        # utils.validate_date(self.install_date)
+        # utils.validate_date(self.termination_date)
         self._validate_cables()
         self.side_a = self.side_a_site
         self.side_z = self.side_z_providernetwork
+        if not self.cir:
+            self.cir = 0
+        if not self.port_speed:
+            self.port_speed = 0
+        if not self.upstream_speed:
+            self.upstream_speed = 0
 
-    # @classmethod
-    # def from_csv(self, filename):
-    #     allow_cable_skip: row.get("allow_cable_skip"),
-    #     overwrite: row.get("overwrite"),
-    #     cable_direct_to_device: row.get("cable_direct_to_device"),
-    #     cid: row["cid"],
-    #     provider: row["provider"],
-    #     type: row["type"],
-    #     description: row["description"],
-    #     install_date: row["install_date"],
-    #     termination_date: row["termination_date"],
-    #     cir: row["cir"] if row["cir"] else None,
-    #     comments: row["comments"],
-    #     side_a: side_a,
-    #     device: device,
-    #     interface: interface,
-    #     pp: pp,
-    #     pp_port: pp_port,
-    #     pp_frontport: pp_frontport,
+
+
 
 
 # @dataclass

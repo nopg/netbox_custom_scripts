@@ -14,7 +14,7 @@ from local.utils import (
     validate_date,
 )
 from local.main import main_circuits_bulk, main_circuit_single, main_standard_circuit#, main_standard_class_circuit
-from local.nice import NiceCircuit
+from local.nice import NiceStandardCircuit
 
 YYYY_MM_DD = r"^\d{4}-([0]\d|1[0-2])-([0-2]\d|3[01])$"
 
@@ -156,7 +156,7 @@ class StandardCircuit(Script):
 
     # Run StandardCircuit
     def run(self, data, commit):
-        circuit = NiceCircuit(logger=self, **data)
+        circuit = NiceStandardCircuit(logger=self, **data)
         circuit.create()
         # log final job status as failed/completed better (abortscript)
 

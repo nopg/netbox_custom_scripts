@@ -22,8 +22,9 @@ UPDATED_ATTRIBUTES = "install_date"
 
 HEADER_MAPPING = {
     "Circuit ID": "cid",
+    "NICE Script Type": "nice_script_type",
     "Provider": "provider",
-    "Circuit Type": "type",
+    "Circuit Type": "circuit_type",
     "Side A Site": "side_a_site",
     "Side A Provider Network": "side_a_providernetwork",
     "Patch Panel": "pp",
@@ -44,6 +45,7 @@ HEADER_MAPPING = {
     "Cable Direct To Device": "cable_direct_to_device",
     "Cross Connect": "xconnect_id",
     "Cable Type": "cable_type",
+    "Allow Cable Skip": "allow_cable_skip",
 }
 
 REQUIRED_VARS = {
@@ -72,7 +74,7 @@ def validate_date(date_str: str) -> None:
         if date.year >= 2026 or date.year <= 1980:
             raise AbortScript(f"Date: {date_str} is outside constraints: Minimum year: 1980, Maximum year: 2026")
     except ValueError:
-        raise AbortScript(f"Invalid date{date_str}), should be YYYY-MM-DD")
+        raise AbortScript(f"Invalid date ({date_str}), should be YYYY-MM-DD")
     
 def validate_user(user):
     if user.username not in BULK_SCRIPT_ALLOWED_USERS:
@@ -150,13 +152,23 @@ def load_data_from_csv(csv_file) -> list[dict]:
         for old_header, value in row.items():
             if old_header in HEADER_MAPPING:
                 csv_row[HEADER_MAPPING[old_header]] = value
-        # Add any missing fields we may check later
-        for header in HEADER_MAPPING:
-            if header not in csv_row:
-                csv_row[header] = ""
 
-        csv_data.append(csv_row)
+                # Add any missing fields we may check later
+                for old_header, new_header in HEADER_MAPPING.items():
+                    if not csv_row.get(new_header):
+                        csv_row[new_header] = ""
+        
+        # for old_header in HEADER_MAPPING:
+        #     if old_header not in csv_row:
+        #         csv_row[HEADER_MAPPING[old_header]] = ""
+        if csv_row:
+            csv_data.append(csv_row)
 
+    # for old_header in HEADER_MAPPING:
+    #     print(f"{old_header=}")
+    #     for 
+    #     csv_data.remove(old_header)
+    # check for key errors?!
     return csv_data
 
 def validate_row(row: dict) -> bool | str:

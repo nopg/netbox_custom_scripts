@@ -1,10 +1,11 @@
+import sys
+
 from extras.scripts import Script
 from circuits.models import Circuit, CircuitTermination, CircuitType, Provider, ProviderNetwork
 from dcim.models import Cable, Device, RearPort, FrontPort, Interface, RearPortTemplate, FrontPortTemplate, Site
 from utilities.exceptions import AbortScript
 
-from local.nice import NiceCircuit
-from scripts.circuit_adder import StandardCircuit
+from local.nice import NiceBulkCircuits, NiceStandardCircuit
 # from local.utils import build_cable
 # from local.nice import test
 # from dataclasses import dataclass
@@ -142,10 +143,17 @@ def my_test1(logger):
 		"cir": 0,
 		"comments": "",
 	}
-	circuit = NiceCircuit(logger, **data)
+	circuit = NiceStandardCircuit(logger, **data)
 	circuit.create()
 
-class Test(Script):	
+def my_test_bulk(logger, filename):
+	circuits = NiceBulkCircuits.from_csv(logger=logger, filename=filename)
+
+	from rich.pretty import pprint
+	pprint(circuits)
+
+
+class Test(Script):
 	class Meta:
 		name = "misc tests"
 		commit_default = False
@@ -158,6 +166,8 @@ class Test(Script):
 		#pp_info()
 		#term_descrs()
 		try:
-			my_test1(self)
+			#my_test1(self)
+			filename = "local/tests/csv_bulk_circuits_test.csv"
+			my_test_bulk(logger=self, filename=filename)
 		except AbortScript as e:
 			print(e)
