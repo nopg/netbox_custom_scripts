@@ -5,9 +5,16 @@ from dcim.models import Cable, Device, Interface, RearPort, Site
 from extras.scripts import BooleanVar, ChoiceVar, FileVar, IntegerVar, ObjectVar, Script, StringVar, TextVar
 from utilities.exceptions import AbortScript
 
-from local.utils import load_data_from_csv, prepare_netbox_data, validate_user, get_side_by_name, prepare_pp_ports, validate_date
-from local.main import main_circuits_bulk, main_circuit_single, main_standard_circuit
-
+from local.utils import (
+    load_data_from_csv,
+    prepare_netbox_data,
+    validate_user,
+    get_side_by_name,
+    prepare_pp_ports,
+    validate_date,
+)
+from local.main import main_circuits_bulk, main_circuit_single, main_standard_circuit#, main_standard_class_circuit
+from local.nice import NiceCircuit
 
 YYYY_MM_DD = r"^\d{4}-([0]\d|1[0-2])-([0-2]\d|3[01])$"
 
@@ -18,6 +25,7 @@ class StandardCircuit(Script):
 
     This class provides the GUI Interface & Main Entry Point for a Standard Single Circuit Import
     """
+
     class Meta:
         name = "Standard Circuit"
         description = "Provision one Standard Circuit."
@@ -28,12 +36,24 @@ class StandardCircuit(Script):
         fieldsets = (
             (
                 "Enter Circuit Information",
-                ("cid", "description", "provider", "type", "side_a_site", "side_z_providernetwork"),
+                ("cid", "description", "provider", "circuit_type", "side_a_site", "side_z_providernetwork"),
             ),
-            ("Cables", ("pp", "pp_port", "pp_new_port", "device", "interface", "cable_direct_to_device", "create_pp_port")),
+            (
+                "Cables",
+                ("pp", "pp_port", "pp_new_port", "device", "interface", "cable_direct_to_device", "create_pp_port"),
+            ),
             (
                 "Other",
-               ("port_speed", "upload_speed", "cir", "install_date", "termination_date", "cross_connect", "pp_info","comments"),
+                (
+                    "port_speed",
+                    "upstream_speed",
+                    "cir",
+                    "install_date",
+                    "termination_date",
+                    "xconnect_id",
+                    "pp_info",
+                    "comments",
+                ),
             ),
             ("Advanced Options", ("overwrite",)),
         )
@@ -52,7 +72,7 @@ class StandardCircuit(Script):
         label="Circuit Provider",
         required=True,
     )
-    type = ObjectVar(
+    circuit_type = ObjectVar(
         model=CircuitType,
         description="Circuit Type",
         required=True,
@@ -84,10 +104,10 @@ class StandardCircuit(Script):
     cable_direct_to_device = BooleanVar(
         label="Cable Direct To Device?",
         description="Check this box ONLY if the Circuit does not flow through a Patch Panel",
-        default=False
+        default=False,
     )
     create_pp_port = BooleanVar(
-        label = "Create Patch Panel Interface?",
+        label="Create Patch Panel Interface?",
         default=False,
     )
     port_speed = IntegerVar(
@@ -95,7 +115,7 @@ class StandardCircuit(Script):
         min_value=0,
         required=False,
     )
-    upload_speed = IntegerVar(
+    upstream_speed = IntegerVar(
         label="Upload Speed (Kbps)",
         min_value=0,
         required=False,
@@ -120,7 +140,7 @@ class StandardCircuit(Script):
         regex=YYYY_MM_DD,
         required=True,
     )
-    cross_connect = StringVar(
+    xconnect_id = StringVar(
         label="Cross Connect ID/Info",
         required=False,
     )
@@ -128,13 +148,17 @@ class StandardCircuit(Script):
         label="Extra Patch Panel Info",
         required=False,
     )
-    overwrite = BooleanVar(description="Overwrite existing circuits? (same Ciruit ID & Provider == Same Circuit)", default=False)
+    overwrite = BooleanVar(
+        description="Overwrite existing circuits? (same Ciruit ID & Provider == Same Circuit)", default=False
+    )
 
-    # Run SingleCircuit
+    # Run StandardCircuit
     def run(self, data, commit):
-        output = main_standard_circuit(data=data, logger=self)
-        if output:
-            return output
+        #output = main_standard_circuit(data=data, logger=self)
+        output = NiceCircuit(logger=self, **data)
+        output.create()
+        # if output:
+        #     return output
         # log final job status as failed/completed better (abortscript)
 
 
@@ -144,6 +168,7 @@ class P2PCircuit(Script):
 
     This class provides the GUI Interface & Main Entry Point for a Single Circuit Import
     """
+
     class Meta:
         name = "Point to Point Circuit"
         description = "Provision one new Point-to-Point circuit."
@@ -167,10 +192,10 @@ class P2PCircuit(Script):
             ("Cables", ("pp", "pp_port", "device", "interface", "cable_type")),
             (
                 "Other",
-               ("cir", "install_date", "termination_date", "comment", "cable_direct_to_device", "cross_connect"),
+                ("cir", "install_date", "termination_date", "comment", "cable_direct_to_device", "cross_connect"),
             ),
             ("P2P Circuits", ("pp_z", "pp_z_port", "device_z", "interface_z", "cable_z_type")),
-            ("Advanced Options", ("overwrite","create_pp_port", "create_pp_z_port")),
+            ("Advanced Options", ("overwrite", "create_pp_port", "create_pp_z_port")),
         )
 
     # Display Fields
@@ -238,11 +263,13 @@ class P2PCircuit(Script):
         CableTypeChoices,
         default=CableTypeChoices.TYPE_SMF,
         label="Cable Type",
-        required=False,     
+        required=False,
     )
 
     pp_z = ObjectVar(model=Device, label="Patch Panel Side Z", required=False)
-    pp_z_port = ObjectVar(model=RearPort, label="Patch Panel Port Side Z", required=False, query_params={"device_id": "$pp_z"})
+    pp_z_port = ObjectVar(
+        model=RearPort, label="Patch Panel Port Side Z", required=False, query_params={"device_id": "$pp_z"}
+    )
     device_z = ObjectVar(model=Device, label="Device Side Z", required=False, query_params={"site_id": "$side_z_site"})
     interface_z = ObjectVar(
         model=Interface,
@@ -254,7 +281,7 @@ class P2PCircuit(Script):
         CableTypeChoices,
         default=CableTypeChoices.TYPE_SMF,
         label="Cable Type Side Z",
-        required=False,     
+        required=False,
     )
 
     comment = StringVar(
@@ -274,18 +301,20 @@ class P2PCircuit(Script):
         label="Cross Connect ID/Info",
         required=False,
     )
-    overwrite = BooleanVar(description="Overwrite existing circuits? (same Ciruit ID & Provider == Same Circuit)", default=False)
+    overwrite = BooleanVar(
+        description="Overwrite existing circuits? (same Ciruit ID & Provider == Same Circuit)", default=False
+    )
     cable_direct_to_device = BooleanVar(
         label="Cable Direct To Device?",
         description="Check this box ONLY if the Circuit does not flow through a Patch Panel",
-        default=False
+        default=False,
     )
     create_pp_port = BooleanVar(
-        label = "Create Patch Panel Interface?",
+        label="Create Patch Panel Interface?",
         default=False,
     )
     create_pp_z_port = BooleanVar(
-        label = "Create Patch Panel (Z Side) Interface?",
+        label="Create Patch Panel (Z Side) Interface?",
         default=False,
     )
 
@@ -293,10 +322,14 @@ class P2PCircuit(Script):
     def run(self, data, commit):
         # Validate Form Data
         if data["side_a_site"] and data["side_a_providernetwork"]:
-            raise AbortScript(f"Circuit {data['cid']} cannot have Side A Site AND Side A Provider Network Simultaneously")
+            raise AbortScript(
+                f"Circuit {data['cid']} cannot have Side A Site AND Side A Provider Network Simultaneously"
+            )
         if data["side_z_site"] and data["side_z_providernetwork"]:
-            raise AbortScript(f"Circuit {data['cid']} cannot have Side Z Site AND Side Z Provider Network Simultaneously")
-        
+            raise AbortScript(
+                f"Circuit {data['cid']} cannot have Side Z Site AND Side Z Provider Network Simultaneously"
+            )
+
         # FIX BELOW / Create FUNCITON?
         side_a = get_side_by_name(data["side_a_site"], data["side_a_providernetwork"])
         side_z = get_side_by_name(data["side_z_site"], data["side_z_providernetwork"])
@@ -311,7 +344,7 @@ class P2PCircuit(Script):
             site = None
         data["side_a"] = side_a
         data["side_z"] = side_z
-        
+
         data["pp_frontport"] = prepare_pp_ports(data["pp_port"])
         data["pp_z_frontport"] = prepare_pp_ports(data["pp_z_port"])
 
@@ -338,6 +371,7 @@ class BulkCircuits(Script):
 
     This class provides the GUI Interface & Main Entry Point for Bulk Circuit Imports
     """
+
     class Meta:
         name = "Bulk Circuits"
         description = "Provision circuits in bulk via CSV import"
@@ -377,12 +411,10 @@ class BulkCircuits(Script):
 
         # # Run Script
         # main_circuits_bulk(netbox_data=netbox_data, self=self)
-    
-
 
         # Run Script
         main_circuits_bulk(circuits_csv=data["bulk_circuits"], overwrite=data["overwrite"], logger=self)
-        
+
         # log final job status as failed/completed better (abortscript)
 
 
@@ -490,7 +522,7 @@ name = "NICE InContact Single Circuit Manager"
 #         CableTypeChoices,
 #         default=CableTypeChoices.TYPE_SMF,
 #         label="Cable Type",
-#         required=False,     
+#         required=False,
 #     )
 
 #     pp_z = ObjectVar(model=Device, label="Patch Panel Side Z", required=False)
@@ -506,7 +538,7 @@ name = "NICE InContact Single Circuit Manager"
 #         CableTypeChoices,
 #         default=CableTypeChoices.TYPE_SMF,
 #         label="Cable Type Side Z",
-#         required=False,     
+#         required=False,
 #     )
 
 #     comment = StringVar(
@@ -548,7 +580,7 @@ name = "NICE InContact Single Circuit Manager"
 #             raise AbortScript(f"Circuit {data['cid']} cannot have Side A Site AND Side A Provider Network Simultaneously")
 #         if data["side_z_site"] and data["side_z_providernetwork"]:
 #             raise AbortScript(f"Circuit {data['cid']} cannot have Side Z Site AND Side Z Provider Network Simultaneously")
-        
+
 #         # FIX BELOW / Create FUNCITON?
 #         side_a = get_side_by_name(data["side_a_site"], data["side_a_providernetwork"])
 #         side_z = get_side_by_name(data["side_z_site"], data["side_z_providernetwork"])
@@ -563,7 +595,7 @@ name = "NICE InContact Single Circuit Manager"
 #             site = None
 #         data["side_a"] = side_a
 #         data["side_z"] = side_z
-        
+
 #         data["pp_frontport"] = prepare_pp_ports(data["pp_port"])
 #         data["pp_z_frontport"] = prepare_pp_ports(data["pp_z_port"])
 

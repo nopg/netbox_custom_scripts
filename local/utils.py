@@ -42,7 +42,7 @@ HEADER_MAPPING = {
     "Device Z": "device_z",
     "Interface Z": "interface_z",
     "Cable Direct To Device": "cable_direct_to_device",
-    "Cross Connect": "cross_connect",
+    "Cross Connect": "xconnect_id",
     "Cable Type": "cable_type",
 }
 
@@ -279,27 +279,27 @@ def prepare_netbox_data(csv_data: list[dict], overwrite: bool, allow_cable_skip:
         circuit_data.append(row)
     return circuit_data
 
-def save_cables(logger, *objects, allow_cable_skip: bool = False):
-    for obj in objects:
-        if obj:
+def save_cables(logger, cables: list, allow_cable_skip: bool = False):
+    for cable in cables:
+        if cable:
             try:
-                obj.full_clean()
-                obj.save()
-                logger.log_success(f"Saved: '{obj}'")
+                cable.full_clean()
+                cable.save()
+                logger.log_success(f"Saved: '{cable}'")
             except ValidationError as e:
                 error = ""
                 for msg in e.messages:
                     if "Duplicate" in msg:
-                        error += f"Duplicate Cable found, unable to create Cable: {obj}\n"
+                        error += f"Duplicate Cable found, unable to create Cable: {cable}\n"
                     else:
-                        error += f"Validation Error saving {type(obj)}: {e.messages}\n"
+                        error += f"Validation Error saving {type(cable)}: {e.messages}\n"
                 
                 if not allow_cable_skip:
                     raise AbortScript(error)
                 else:
                     logger.log_failure(error)
             except Exception as e:
-                logger.log_failure(f"Unknown error saving {type(obj)}: {e}")
+                logger.log_failure(f"Unknown error saving {type(cable)}: {e}")
                 logger.log_failure(f"Type: {type(e)}")
 
 
@@ -326,23 +326,42 @@ def validate_circuit(circuit: Circuit) -> bool:
     failed = b.validate(circuit=circuit, manual=True)
     return failed
 
-def save_circuit(circuit: Circuit, self: Script):
+def save_circuit(circuit: Circuit, logger: Script, allow_cable_skip: bool = False):
     error = validate_circuit(circuit)
     if error:
-        self.log_failure(f"Failed custom validation: {error}")
+        logger.log_failure(f"Failed custom validation: {error}")
     else:
         try:
             circuit.full_clean()
             circuit.save()
-            self.log_success(f"Saved circuit: '{circuit.cid}'")
+            logger.log_success(f"Saved circuit: '{circuit.cid}'")
         except ValidationError as e:
             lmessages = [msg for msg in e.messages]
             messages = "\n".join(lmessages)
-            self.log_failure(f"{circuit.cid} - Failed Netbox validation: {messages}")
+            error = f"Unable to save circuit: {circuit.cid} - Failed Netbox validation: {messages}"
+
+            if allow_cable_skip:
+                logger.log_failure(error)
+            else:
+                raise AbortScript(error)
 
     return circuit
 
-def check_circuit_duplicate(netbox_row: dict[str,any]) -> bool:
+def check_circuit_duplicate(cid: str, provider: Provider) -> bool:
+    # Check for duplicate
+    circ = Circuit.objects.filter(
+        cid=cid, provider=provider
+    )
+    if circ.count() == 0:  # Normal creation, no duplicate
+        return False
+    elif circ.count() > 1:
+        raise AbortScript(
+            f"Error, multiple duplicates for Circuit ID: {cid}, please resolve manually."
+        )
+    else:
+        return True # Duplicate found
+    
+def check_circuit_duplicate2(netbox_row: dict[str,any]) -> bool:
     # Check for duplicate
     circ = Circuit.objects.filter(
         cid=netbox_row["cid"], provider__name=netbox_row["provider"]
@@ -355,7 +374,7 @@ def check_circuit_duplicate(netbox_row: dict[str,any]) -> bool:
         )
     else:
         return True # Duplicate found
-    
+        
 def update_existing_circuit(existing_circuit: Circuit, new_circuit: dict[str, any]) -> Circuit | None:
     for attribute in ("description", "type", "install_date", "cir", "comments"):
         if not new_circuit[attribute] and attribute in (UPDATED_ATTRIBUTES):
@@ -365,7 +384,7 @@ def update_existing_circuit(existing_circuit: Circuit, new_circuit: dict[str, an
     return existing_circuit
 
 def build_circuit(self: Script, netbox_row: dict[str,any], overwrite: bool = False) -> None:
-    duplicate = check_circuit_duplicate(netbox_row)
+    duplicate = check_circuit_duplicate2(netbox_row)
     if not duplicate: # No duplicate
         new_circuit = create_circuit_from_data(netbox_row)
 
@@ -393,8 +412,11 @@ def build_circuit(self: Script, netbox_row: dict[str,any], overwrite: bool = Fal
 
 def save_terminations(terminations: list):
     for termination in terminations:
-        termination.full_clean()
-        termination.save()
+        if isinstance(termination, CircuitTermination):
+            termination.full_clean()
+            termination.save()
+        else:
+            raise AbortScript(f"Error saving termination: {termination}")
 
 
 def build_terminations(self: Script, netbox_row: dict[str,any], circuit: Circuit) -> CircuitTermination | None:
@@ -424,7 +446,7 @@ def build_terminations(self: Script, netbox_row: dict[str,any], circuit: Circuit
 
     return termination_a, termination_z
 
-def build_cable(self: Script, side_a: Interface, side_b) -> None:
-    cable = Cable(a_terminations=[side_a], b_terminations=[side_b], type=CableTypeChoices.TYPE_SMF_OS2)
+def build_cable(self: Script, side_a: Interface, side_b, label: str = "") -> None:
+    cable = Cable(a_terminations=[side_a], b_terminations=[side_b], type=CableTypeChoices.TYPE_SMF_OS2, label=label)
     #save_cable(cable)
     return cable

@@ -3,8 +3,8 @@ from dcim.models import Cable, Site
 from extras.scripts import Script
 from utilities.exceptions import AbortScript
 
-from local.utils import build_circuit, build_cable, build_terminations, load_data_from_csv, prepare_netbox_data, prepare_pp_ports,save_cables, validate_date
-
+from local.utils import build_circuit, build_cable, build_terminations, load_data_from_csv, prepare_netbox_data, prepare_pp_ports,save_cables, validate_date, save_circuit
+#from local.nice import NiceCircuit
 
 def build_device_cable(logger, side_a, row):
     if row["device"] and row["interface"] and side_a:
@@ -40,6 +40,10 @@ def build_pp_cable(logger: Script, netbox_row: dict, circuit: Circuit) -> Cable 
             raise AbortScript(f"Error, not allowed to skip cable creation, and unable to create cable to Patch Panel on circuit: {circuit.cid}")
 
 
+# def main_standard_class_circuit(data: dict[str,any], logger: Script) -> None:
+#     standard = NiceCircuit(**data)
+#     standard.create()
+
 def main_standard_circuit(data: dict[str,any], logger: Script) -> None:
     """
     Entry Point for Standard Single Circuit
@@ -70,7 +74,8 @@ def main_standard_circuit(data: dict[str,any], logger: Script) -> None:
         raise AbortScript(f"Error: Cable Direct to Device chosen, but Patch Panel also Selected.")
     elif not data["cable_direct_to_device"] and (not data["pp"] or not data["pp_port"]):
         raise AbortScript(f"Error: Patch Panel missing, and 'Cable Direct to Device' is not checked.")
-    elif data["cable_direct_to_device"]:
+    
+    if data["cable_direct_to_device"]:
         pp_cable = None
         device_cable = build_device_cable(logger, side_a=ct_a, row=data)
     else:
