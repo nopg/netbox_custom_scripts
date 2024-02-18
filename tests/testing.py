@@ -149,8 +149,11 @@ def my_test1(logger):
 def my_test_bulk(logger, filename):
 	circuits = NiceBulkCircuits.from_csv(logger=logger, filename=filename)
 
-	from rich.pretty import pprint
-	pprint(circuits)
+	# from rich.pretty import pprint
+	# pprint(circuits)
+
+	for circuit in circuits:
+		circuit.create()
 
 
 class Test(Script):
@@ -167,7 +170,8 @@ class Test(Script):
 		#term_descrs()
 		try:
 			#my_test1(self)
-			filename = "local/tests/csv_bulk_circuits_test.csv"
+			# filename = "local/tests/csv_bulk_circuits_test.csv"
+			filename = "local/tests/gui_bulk_circuits_test.csv"
 			my_test_bulk(logger=self, filename=filename)
 		except AbortScript as e:
 			print(e)

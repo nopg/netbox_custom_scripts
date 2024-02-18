@@ -3,7 +3,6 @@ pull:
 	scp nicnb:/opt/netbox/netbox/reports/report_circuit_validations.py ./reports/
 	scp nicnb:/opt/netbox/netbox/local/tests/test_circuit_adder.py ./local/tests/
 	scp nicnb:/opt/netbox/netbox/local/utils.py ./local/
-	scp nicnb:/opt/netbox/netbox/local/main.py ./local/
 	scp nicnb:/opt/netbox/netbox/local/nice.py ./local/
 	scp nicnb:/opt/netbox/netbox/local/validators.py ./local/
 
@@ -11,6 +10,7 @@ pull:
 
 push_csv_tests:
 	scp test_csvs/csv_bulk_circuits_test.csv nicnb:/opt/netbox/netbox/local/tests/
+	scp test_csvs/gui_bulk_circuits_test.csv nicnb:/opt/netbox/netbox/local/tests/
 
 initial_push:
 	@echo "If you want to run 'make push': "

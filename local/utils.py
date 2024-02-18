@@ -49,7 +49,7 @@ HEADER_MAPPING = {
 }
 
 REQUIRED_VARS = {
-    "cid", "provider", "type"
+    "cid", "provider", "circuit_type"
 }
 
 CABLE_COLORS = {
@@ -142,10 +142,19 @@ def get_side_by_name(side_site, side_providernetwork) -> Site | ProviderNetwork:
         side = get_provider_network_by_name(side_providernetwork)
     return side
 
-def load_data_from_csv(csv_file) -> list[dict]:
-    circuits_csv = csv.DictReader(codecs.iterdecode(csv_file, "utf-8"))
-    csv_data = []
+def load_data_from_csv(filename) -> list[dict]:
 
+    if not isinstance(filename, InMemoryUploadedFile):
+        try:
+            csv_file = open(filename, "rb")
+        except FileNotFoundError:
+            raise AbortScript(f"File '{filename}' not found!")
+    else:
+        csv_file = filename
+
+    circuits_csv = csv.DictReader(codecs.iterdecode(csv_file, "utf-8"))
+    
+    csv_data = []
     # Update Dictionary Keys / Headers
     for row in circuits_csv:
         csv_row = {}
@@ -171,38 +180,38 @@ def load_data_from_csv(csv_file) -> list[dict]:
     # check for key errors?!
     return csv_data
 
-def validate_row(row: dict) -> bool | str:
-    """
-    Validate we have the required variables
-    """
-    missing = []
-    error = False
+# def validate_row(row: dict) -> bool | str:
+#     """
+#     Validate we have the required variables
+#     """
+#     missing = []
+#     error = False
 
-    for var in REQUIRED_VARS:
-        if row.get(var) is None:
-            missing.append(var)
-    if missing:
-        columns = ", ".join(missing)
-        error = f"'{row.get('cid')}' is missing required values(s): {columns}\n"
+#     for var in REQUIRED_VARS:
+#         if row.get(var) is None:
+#             missing.append(var)
+#     if missing:
+#         columns = ", ".join(missing)
+#         error = f"'{row.get('cid')}' is missing required values(s): {columns}\n"
     
-    if row["side_a_site"] and row["side_a_providernetwork"]:
-        error += f"Circuit {row['cid']} cannot have Side A Site AND Side A Provider Network Simultaneously\n"
-    if row["side_z_site"] and row["side_z_providernetwork"]:
-        error += f"Circuit {row['cid']} cannot have Side Z Site AND Side Z Provider Network Simultaneously\n"
+#     if row["side_a_site"] and row["side_a_providernetwork"]:
+#         error += f"Circuit {row['cid']} cannot have Side A Site AND Side A Provider Network Simultaneously\n"
+#     if row["side_z_site"] and row["side_z_providernetwork"]:
+#         error += f"Circuit {row['cid']} cannot have Side Z Site AND Side Z Provider Network Simultaneously\n"
 
-    return error
+#     return error
 
-def prepare_pp_ports(pp_rearport):
-    """
-    Get FrontPort associated with RearPort
-    """
-    if not isinstance(pp_rearport, RearPort):
-        return None
-    if pp_rearport.positions > 1:
-        raise AbortScript(f"RearPorts with multiple positions not yet implemented: RearPort: {pp_rearport}")
-    pp_frontport = pp_rearport.frontports.first()
+# def prepare_pp_ports(pp_rearport):
+#     """
+#     Get FrontPort associated with RearPort
+#     """
+#     if not isinstance(pp_rearport, RearPort):
+#         return None
+#     if pp_rearport.positions > 1:
+#         raise AbortScript(f"RearPorts with multiple positions not yet implemented: RearPort: {pp_rearport}")
+#     pp_frontport = pp_rearport.frontports.first()
 
-    return pp_frontport
+#     return pp_frontport
 
 
 def prepare_netbox_row(row: dict):
@@ -212,7 +221,7 @@ def prepare_netbox_row(row: dict):
 
     row["provider"] = get_provider_by_name(name=row["provider"])
     row["type"] = get_circuit_type_by_name(name=row["type"])
-    skip = validate_row(row)
+    # skip = validate_row(row)
 
     # # Single Circuits are NOT allowed to skip cable creation
     # if not row.get("allow_cable_skip"):
@@ -428,7 +437,8 @@ def save_terminations(terminations: list):
             termination.full_clean()
             termination.save()
         else:
-            raise AbortScript(f"Error saving termination: {termination}")
+            pass
+            #raise AbortScript(f"Error saving termination: {termination}")
 
 
 def build_terminations(self: Script, netbox_row: dict[str,any], circuit: Circuit) -> CircuitTermination | None:

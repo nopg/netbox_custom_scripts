@@ -6,15 +6,15 @@ from extras.scripts import BooleanVar, ChoiceVar, FileVar, IntegerVar, ObjectVar
 from utilities.exceptions import AbortScript
 
 from local.utils import (
-    load_data_from_csv,
-    prepare_netbox_data,
+    # load_data_from_csv,
+    # prepare_netbox_data,
     validate_user,
-    get_side_by_name,
-    prepare_pp_ports,
+    # get_side_by_name,
+    #prepare_pp_ports,
     validate_date,
 )
-from local.main import main_circuits_bulk, main_circuit_single, main_standard_circuit#, main_standard_class_circuit
-from local.nice import NiceStandardCircuit
+#from local.main import main_circuits_bulk, main_circuit_single, main_standard_circuit#, main_standard_class_circuit
+from local.nice import NiceStandardCircuit, NiceBulkCircuits
 
 YYYY_MM_DD = r"^\d{4}-([0]\d|1[0-2])-([0-2]\d|3[01])$"
 
@@ -330,8 +330,8 @@ class P2PCircuit(Script):
             )
 
         # FIX BELOW / Create FUNCITON?
-        side_a = get_side_by_name(data["side_a_site"], data["side_a_providernetwork"])
-        side_z = get_side_by_name(data["side_z_site"], data["side_z_providernetwork"])
+        # side_a = get_side_by_name(data["side_a_site"], data["side_a_providernetwork"])
+        # side_z = get_side_by_name(data["side_z_site"], data["side_z_providernetwork"])
         if type(side_a) == Site:
             site = side_a
         elif type(side_a) == ProviderNetwork:
@@ -344,8 +344,8 @@ class P2PCircuit(Script):
         data["side_a"] = side_a
         data["side_z"] = side_z
 
-        data["pp_frontport"] = prepare_pp_ports(data["pp_port"])
-        data["pp_z_frontport"] = prepare_pp_ports(data["pp_z_port"])
+        # data["pp_frontport"] = prepare_pp_ports(data["pp_port"])
+        # data["pp_z_frontport"] = prepare_pp_ports(data["pp_z_port"])
 
         # set rear/front port (create function)
         rear_port = data.get("pp_port")
@@ -412,7 +412,10 @@ class BulkCircuits(Script):
         # main_circuits_bulk(netbox_data=netbox_data, self=self)
 
         # Run Script
-        main_circuits_bulk(circuits_csv=data["bulk_circuits"], overwrite=data["overwrite"], logger=self)
+        #main_circuits_bulk(circuits_csv=data["bulk_circuits"], overwrite=data["overwrite"], logger=self)
+        circuits = NiceBulkCircuits.from_csv(logger=self, overwrite=data["overwrite"], filename=data["bulk_circuits"])
+        for circuit in circuits:
+            circuit.create()
 
         # log final job status as failed/completed better (abortscript)
 
