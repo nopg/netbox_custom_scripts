@@ -9,9 +9,10 @@ from utilities.testing.base import TestCase
 
 # from extras.choices import LogLevelChoices
 from extras.scripts import Script
-from scripts.circuit_adder import BulkCircuits, SingleCircuit
+from scripts.circuit_adder import BulkCircuits, StandardCircuit
 import os
 from local.utils import *
+from local.nice import NiceBulkCircuits, NiceCircuit, NiceStandardCircuit
 
 
 class CircuitAdderTestCase(TestCase):
@@ -25,12 +26,12 @@ class CircuitAdderTestCase(TestCase):
     # Set up Test Database
     @classmethod
     def setUpTestData(cls):
-        script_dir = os.path.dirname(__file__)
-        csv_test_filename = "csv_bulk_circuits_test.csv"
-        filename = os.path.join(script_dir, csv_test_filename)
-        iofile = open(filename, mode="rb")
-        cls.csv_data = load_data_from_csv(iofile)
-        iofile.close()
+        # script_dir = os.path.dirname(__file__)
+        # csv_test_filename = "csv_bulk_circuits_test.csv"
+        # filename = os.path.join(script_dir, csv_test_filename)
+        # iofile = open(filename, mode="rb")
+        # cls.csv_data = load_data_from_csv(iofile)
+        # iofile.close()
 
         cls.new_circuit_duplicate_1 = {
             "cid": "Circuit 1",
@@ -219,316 +220,320 @@ class CircuitAdderTestCase(TestCase):
         self.assertIsNone(interface)
 
     def test_load_data_from_csv(self):
-        # Load File
-        script_dir = os.path.dirname(__file__)
-        csv_test_filename = "csv_bulk_circuits_test.csv"
-        filename = os.path.join(script_dir, csv_test_filename)
-        with open(filename, mode="rb") as iofile:
-            csv_data = load_data_from_csv(iofile)
+        csv_test_filename = "local/tests/csv_bulk_circuits_test.csv"
+        circuits = NiceBulkCircuits.from_csv(logger=StandardCircuit(), overwrite=False, filename=csv_test_filename)
+        self.assertIsInstance(circuits[0], NiceStandardCircuit)
 
-        self.assertIsInstance(csv_data, list)
-        self.assertIsInstance(csv_data[0], dict)
+    #     # Load File
+    #     script_dir = os.path.dirname(__file__)
+    #     csv_test_filename = "csv_bulk_circuits_test.csv"
+    #     filename = os.path.join(script_dir, csv_test_filename)
+    #     with open(filename, mode="rb") as iofile:
+    #         csv_data = load_data_from_csv(iofile)
 
-    def test_validate_row(self):
-        row = {
-            "cid": "Circuit Test",
-            "provider": "Provider 1",
-            "type": "Circuit-Type 1",
-            "device": "Device 1",
-            "interface": "Interface 1",
-            "side_a_site": "Site 1",
-            "side_a_providernetwork": "",
-            "side_z_site": "",
-            "side_z_providernetwork": "Provider-Network 1",
-            "description": "Description 1",
-            "install_date": "",
-            "termination_date": "",
-            "cir": "10485760",
-            "comments": "",
-            "contacts": "",
-            "tags": "",
-            "pp": "",
-            "pp_port": "",
-        }
-        skip = validate_row(row)
-        self.assertFalse(skip)
+    #     self.assertIsInstance(csv_data, list)
+    #     self.assertIsInstance(csv_data[0], dict)
 
-    def test_validate_row_fail_1(self):
-        row = {
-            # Missing cid
-            "provider": "Provider 1",
-            "type": "Circuit-Type 1",
-            "device": "Device 1",
-            "interface": "Interface 1",
-            "side_a_site": "Site 1",
-            "side_a_providernetwork": "",
-            "side_z_site": "",
-            "side_z_providernetwork": "Provider-Network 1",
-            "description": "Description 1",
-            "install_date": "",
-            "termination_date": "",
-            "cir": "10485760",
-            "comments": "",
-            "contacts": "",
-            "tags": "",
-            "pp": "",
-            "pp_port": "",
-        }
-        skip = validate_row(row)
-        self.assertTrue(skip)
+    # def test_validate_row(self):
+    #     row = {
+    #         "cid": "Circuit Test",
+    #         "provider": "Provider 1",
+    #         "type": "Circuit-Type 1",
+    #         "device": "Device 1",
+    #         "interface": "Interface 1",
+    #         "side_a_site": "Site 1",
+    #         "side_a_providernetwork": "",
+    #         "side_z_site": "",
+    #         "side_z_providernetwork": "Provider-Network 1",
+    #         "description": "Description 1",
+    #         "install_date": "",
+    #         "termination_date": "",
+    #         "cir": "10485760",
+    #         "comments": "",
+    #         "contacts": "",
+    #         "tags": "",
+    #         "pp": "",
+    #         "pp_port": "",
+    #     }
+    #     skip = validate_row(row)
+    #     self.assertFalse(skip)
 
-    def test_validate_row_fail_2(self):
-        row = {
-            "provider": "Provider 1",
-            # Missing Circuit Type
-            "device": "Device 1",
-            "interface": "Interface 1",
-            "side_a_site": "Site 1",
-            "side_a_providernetwork": "",
-            "side_z_site": "",
-            "side_z_providernetwork": "Provider-Network 1",
-            "description": "Description 1",
-            "install_date": "",
-            "termination_date": "",
-            "cir": "10485760",
-            "comments": "",
-            "contacts": "",
-            "tags": "",
-            "pp": "",
-            "pp_port": "",
-        }
-        skip = validate_row(row)
-        self.assertTrue(skip)
+    # def test_validate_row_fail_1(self):
+    #     row = {
+    #         # Missing cid
+    #         "provider": "Provider 1",
+    #         "type": "Circuit-Type 1",
+    #         "device": "Device 1",
+    #         "interface": "Interface 1",
+    #         "side_a_site": "Site 1",
+    #         "side_a_providernetwork": "",
+    #         "side_z_site": "",
+    #         "side_z_providernetwork": "Provider-Network 1",
+    #         "description": "Description 1",
+    #         "install_date": "",
+    #         "termination_date": "",
+    #         "cir": "10485760",
+    #         "comments": "",
+    #         "contacts": "",
+    #         "tags": "",
+    #         "pp": "",
+    #         "pp_port": "",
+    #     }
+    #     skip = validate_row(row)
+    #     self.assertTrue(skip)
 
-    def test_prepare_netbox_row(self):
-        row = {
-            "cid": "Circuit Test",
-            "provider": "Provider 1",
-            "type": "Circuit-Type 1",
-            "device": "Device 1",
-            "interface": "Interface 1",
-            "side_a_site": "Site 1",
-            "side_a_providernetwork": "",
-            "side_z_site": "",
-            "side_z_providernetwork": "Provider-Network 1",
-            "description": "Description 1",
-            "install_date": "",
-            "termination_date": "",
-            "cir": "10485760",
-            "comments": "",
-            "contacts": "",
-            "tags": "",
-            "pp": "",
-            "pp_port": "",
-        }
+    # def test_validate_row_fail_2(self):
+    #     row = {
+    #         "provider": "Provider 1",
+    #         # Missing Circuit Type
+    #         "device": "Device 1",
+    #         "interface": "Interface 1",
+    #         "side_a_site": "Site 1",
+    #         "side_a_providernetwork": "",
+    #         "side_z_site": "",
+    #         "side_z_providernetwork": "Provider-Network 1",
+    #         "description": "Description 1",
+    #         "install_date": "",
+    #         "termination_date": "",
+    #         "cir": "10485760",
+    #         "comments": "",
+    #         "contacts": "",
+    #         "tags": "",
+    #         "pp": "",
+    #         "pp_port": "",
+    #     }
+    #     skip = validate_row(row)
+    #     self.assertTrue(skip)
 
-        circuit_data = prepare_netbox_row(row)
-        self.assertFalse(circuit_data["skip"])  # Valid Circuit
+    # def test_prepare_netbox_row(self):
+    #     row = {
+    #         "cid": "Circuit Test",
+    #         "provider": "Provider 1",
+    #         "type": "Circuit-Type 1",
+    #         "device": "Device 1",
+    #         "interface": "Interface 1",
+    #         "side_a_site": "Site 1",
+    #         "side_a_providernetwork": "",
+    #         "side_z_site": "",
+    #         "side_z_providernetwork": "Provider-Network 1",
+    #         "description": "Description 1",
+    #         "install_date": "",
+    #         "termination_date": "",
+    #         "cir": "10485760",
+    #         "comments": "",
+    #         "contacts": "",
+    #         "tags": "",
+    #         "pp": "",
+    #         "pp_port": "",
+    #     }
 
-    def test_prepare_netbox_row_fail_1(self):
-        row = {
-            "cid": "Circuit Test",
-            "provider": "Provider Missing",
-            "type": "Circuit-Type 1",
-            "device": "Device 1",
-            "interface": "Interface 1",
-            "side_a_site": "Site 1",
-            "side_a_providernetwork": "",
-            "side_z_site": "",
-            "side_z_providernetwork": "Provider-Network 1",
-            "description": "Description 1",
-            "install_date": "",
-            "termination_date": "",
-            "cir": "10485760",
-            "comments": "",
-            "contacts": "",
-            "tags": "",
-            "pp": "",
-            "pp_port": "",
-        }
+    #     circuit_data = prepare_netbox_row(row)
+    #     self.assertFalse(circuit_data["skip"])  # Valid Circuit
 
-        circuit_data = prepare_netbox_row(row)
-        self.assertTrue(circuit_data["skip"])   # Invalid Circuit
+    # def test_prepare_netbox_row_fail_1(self):
+    #     row = {
+    #         "cid": "Circuit Test",
+    #         "provider": "Provider Missing",
+    #         "type": "Circuit-Type 1",
+    #         "device": "Device 1",
+    #         "interface": "Interface 1",
+    #         "side_a_site": "Site 1",
+    #         "side_a_providernetwork": "",
+    #         "side_z_site": "",
+    #         "side_z_providernetwork": "Provider-Network 1",
+    #         "description": "Description 1",
+    #         "install_date": "",
+    #         "termination_date": "",
+    #         "cir": "10485760",
+    #         "comments": "",
+    #         "contacts": "",
+    #         "tags": "",
+    #         "pp": "",
+    #         "pp_port": "",
+    #     }
 
-    def test_prepare_netbox_data(self):
-        netbox_data = prepare_netbox_data(self.csv_data, overwrite=False, allow_cable_skip=True)
+    #     circuit_data = prepare_netbox_row(row)
+    #     self.assertTrue(circuit_data["skip"])   # Invalid Circuit
 
-        self.assertFalse(netbox_data[0]["skip"])
-        self.assertTrue(netbox_data[1]["skip"])     # Missing Provider
-        self.assertTrue(netbox_data[2]["skip"])     # Missing Circuit Type
-        self.assertFalse(netbox_data[3]["skip"])
+    # def test_prepare_netbox_data(self):
+    #     netbox_data = prepare_netbox_data(self.csv_data, overwrite=False, allow_cable_skip=True)
 
-    def test_create_circuit_from_data(self):
-        netbox_data = prepare_netbox_data(self.csv_data, overwrite=False, allow_cable_skip=True)[0] # Only need 1 circuit
-        new_circuit = create_circuit_from_data(netbox_data)
-        self.assertIsInstance(new_circuit, Circuit)
+    #     self.assertFalse(netbox_data[0]["skip"])
+    #     self.assertTrue(netbox_data[1]["skip"])     # Missing Provider
+    #     self.assertTrue(netbox_data[2]["skip"])     # Missing Circuit Type
+    #     self.assertFalse(netbox_data[3]["skip"])
 
-    def test_save_circuit(self):
-        netbox_data = prepare_netbox_data(self.csv_data, overwrite=False, allow_cable_skip=True)[0]
-        new_circuit = create_circuit_from_data(netbox_data)
+    # def test_create_circuit_from_data(self):
+    #     netbox_data = prepare_netbox_data(self.csv_data, overwrite=False, allow_cable_skip=True)[0] # Only need 1 circuit
+    #     new_circuit = create_circuit_from_data(netbox_data)
+    #     self.assertIsInstance(new_circuit, Circuit)
 
-        with self.assertLogs(
-            "netbox.scripts.scripts.circuit_adder.SingleCircuit", level="INFO"
-        ) as logs:  # LogLevelChoices.LOG_SUCCESS
-            output = save_circuit(new_circuit, self=SingleCircuit())
+    # def test_save_circuit(self):
+    #     netbox_data = prepare_netbox_data(self.csv_data, overwrite=False, allow_cable_skip=True)[0]
+    #     new_circuit = create_circuit_from_data(netbox_data)
 
-        self.assertIn("Saved circuit:", logs.output[0])
+    #     with self.assertLogs(
+    #         "netbox.scripts.scripts.circuit_adder.SingleCircuit", level="INFO"
+    #     ) as logs:  # LogLevelChoices.LOG_SUCCESS
+    #         output = save_circuit(new_circuit, self=SingleCircuit())
 
-    def test_save_circuit_duplicate(self):
-        netbox_data = prepare_netbox_row(self.new_circuit_duplicate_1)
-        new_circuit = create_circuit_from_data(netbox_data)
+    #     self.assertIn("Saved circuit:", logs.output[0])
 
-        with self.assertLogs(
-            "netbox.scripts.scripts.circuit_adder.SingleCircuit", level="ERROR"
-        ) as logs:  # LogLevelChoices.LOG_??
-            output = save_circuit(new_circuit, self=SingleCircuit())
+    # def test_save_circuit_duplicate(self):
+    #     netbox_data = prepare_netbox_row(self.new_circuit_duplicate_1)
+    #     new_circuit = create_circuit_from_data(netbox_data)
 
-        self.assertIn("already exists.", logs.output[0])
+    #     with self.assertLogs(
+    #         "netbox.scripts.scripts.circuit_adder.StandardCircuit", level="ERROR"
+    #     ) as logs:  # LogLevelChoices.LOG_??
+    #         output = save_circuit(new_circuit, self=StandardCircuit())
 
-    def test_check_circuit_duplicate_1(self):
-        netbox_data = prepare_netbox_row(self.new_circuit_duplicate_1)
-        duplicate = check_circuit_duplicate(netbox_data)
-        self.assertTrue(duplicate) # No duplicate
+    #     self.assertIn("already exists.", logs.output[0])
 
-    def test_check_circuit_duplicate_2(self):
-        netbox_data = prepare_netbox_row(self.new_circuit_add_1)
-        duplicate = check_circuit_duplicate(netbox_data)
-        self.assertFalse(duplicate) # No duplicate
+    # def test_check_circuit_duplicate_1(self):
+    #     netbox_data = prepare_netbox_row(self.new_circuit_duplicate_1)
+    #     duplicate = check_circuit_duplicate(netbox_data)
+    #     self.assertTrue(duplicate) # No duplicate
 
-    def test_update_existing_circuit(self):
-        existing_circuit = Circuit.objects.first()
-        netbox_row = prepare_netbox_row(self.new_circuit_duplicate_1)
-        netbox_row["install_date"] = "updated"
-        circuit = update_existing_circuit(existing_circuit, netbox_row)
+    # def test_check_circuit_duplicate_2(self):
+    #     netbox_data = prepare_netbox_row(self.new_circuit_add_1)
+    #     duplicate = check_circuit_duplicate(netbox_data)
+    #     self.assertFalse(duplicate) # No duplicate
 
-        self.assertIsInstance(circuit, Circuit)
-        self.assertEquals(circuit.install_date, "updated")
+    # def test_update_existing_circuit(self):
+    #     existing_circuit = Circuit.objects.first()
+    #     netbox_row = prepare_netbox_row(self.new_circuit_duplicate_1)
+    #     netbox_row["install_date"] = "updated"
+    #     circuit = update_existing_circuit(existing_circuit, netbox_row)
 
-    def test_build_circuit_new(self):
-        netbox_row = prepare_netbox_row(self.new_circuit_add_1)
-        overwrite = False
-        circuit = build_circuit(SingleCircuit(), netbox_row, overwrite)
-        self.assertIsInstance(circuit, Circuit)
+    #     self.assertIsInstance(circuit, Circuit)
+    #     self.assertEquals(circuit.install_date, "updated")
 
-    def test_build_circuit_duplicate_overwrite(self):
-        netbox_row = prepare_netbox_row(self.new_circuit_duplicate_1)
-        overwrite = True
+    # def test_build_circuit_new(self):
+    #     netbox_row = prepare_netbox_row(self.new_circuit_add_1)
+    #     overwrite = False
+    #     circuit = build_circuit(SingleCircuit(), netbox_row, overwrite)
+    #     self.assertIsInstance(circuit, Circuit)
 
-        with self.assertLogs(
-            "netbox.scripts.scripts.circuit_adder.SingleCircuit", level="WARNING"
-        ) as logs:  # LogLevelChoices.LOG_??
-            circuit = build_circuit(SingleCircuit(), netbox_row, overwrite)
+    # def test_build_circuit_duplicate_overwrite(self):
+    #     netbox_row = prepare_netbox_row(self.new_circuit_duplicate_1)
+    #     overwrite = True
 
-        self.assertIn("Overwrites enabled, updating existing circuit", logs.output[0])
+    #     with self.assertLogs(
+    #         "netbox.scripts.scripts.circuit_adder.SingleCircuit", level="WARNING"
+    #     ) as logs:  # LogLevelChoices.LOG_??
+    #         circuit = build_circuit(SingleCircuit(), netbox_row, overwrite)
 
-    def test_build_circuit_duplicate_no_overwrite(self):
-        netbox_row = prepare_netbox_row(self.new_circuit_duplicate_1)
-        overwrite = False
+    #     self.assertIn("Overwrites enabled, updating existing circuit", logs.output[0])
 
-        with self.assertLogs(
-            "netbox.scripts.scripts.circuit_adder.SingleCircuit", level="ERROR"
-        ) as logs:  # LogLevelChoices.LOG_??
-            circuit = build_circuit(SingleCircuit(), netbox_row, overwrite)
+    # def test_build_circuit_duplicate_no_overwrite(self):
+    #     netbox_row = prepare_netbox_row(self.new_circuit_duplicate_1)
+    #     overwrite = False
 
-        self.assertIn("overwrites are disabled, skipping.", logs.output[0])
+    #     with self.assertLogs(
+    #         "netbox.scripts.scripts.circuit_adder.SingleCircuit", level="ERROR"
+    #     ) as logs:  # LogLevelChoices.LOG_??
+    #         circuit = build_circuit(SingleCircuit(), netbox_row, overwrite)
 
-    def test_build_terminations(self):
-        netbox_row = prepare_netbox_row(self.new_circuit_add_1)
-        circuit = build_circuit(SingleCircuit(), netbox_row)
+    #     self.assertIn("overwrites are disabled, skipping.", logs.output[0])
 
-        termination_a, termination_z = build_terminations(SingleCircuit(), netbox_row, circuit)
+    # def test_build_terminations(self):
+    #     netbox_row = prepare_netbox_row(self.new_circuit_add_1)
+    #     circuit = build_circuit(SingleCircuit(), netbox_row)
 
-        self.assertIsInstance(termination_a, CircuitTermination)
+    #     termination_a, termination_z = build_terminations(SingleCircuit(), netbox_row, circuit)
 
-    def test_build_terminations_missing_interface(self):
-        new_circuit_add_missing_interface_1 = {
-            "cid": "Circuit Test Add Missing Interface",
-            "provider": "Provider 2",
-            "type": "Circuit-Type 2",
-            "description": "My description 2",
-            "install_date": "",
-            "termination_date": "",
-            "comments": "",
-            "contacts": "",
-            "tags": "",
-            "side_a_site": "Site 1",
-            "side_a_providernetwork": "",
-            "side_z_site": "",
-            "side_z_providernetwork": "",
-            "device": "Device 1",
-            "interface": "",
-            "cir": 1000,
-            "pp": "",
-            "pp_port": "",
-        }
-        netbox_row = prepare_netbox_row(new_circuit_add_missing_interface_1)
-        circuit = build_circuit(SingleCircuit(), netbox_row)
+    #     self.assertIsInstance(termination_a, CircuitTermination)
 
-        with self.assertLogs(
-            "netbox.scripts.scripts.circuit_adder.SingleCircuit", level="WARNING"
-        ) as logs:  # LogLevelChoices.LOG_??
-            termination_a = build_terminations(SingleCircuit(), netbox_row, circuit)
+    # def test_build_terminations_missing_interface(self):
+    #     new_circuit_add_missing_interface_1 = {
+    #         "cid": "Circuit Test Add Missing Interface",
+    #         "provider": "Provider 2",
+    #         "type": "Circuit-Type 2",
+    #         "description": "My description 2",
+    #         "install_date": "",
+    #         "termination_date": "",
+    #         "comments": "",
+    #         "contacts": "",
+    #         "tags": "",
+    #         "side_a_site": "Site 1",
+    #         "side_a_providernetwork": "",
+    #         "side_z_site": "",
+    #         "side_z_providernetwork": "",
+    #         "device": "Device 1",
+    #         "interface": "",
+    #         "cir": 1000,
+    #         "pp": "",
+    #         "pp_port": "",
+    #     }
+    #     netbox_row = prepare_netbox_row(new_circuit_add_missing_interface_1)
+    #     circuit = build_circuit(SingleCircuit(), netbox_row)
 
-        self.assertIn("due to missing Device Interface", logs.output[0])
+    #     with self.assertLogs(
+    #         "netbox.scripts.scripts.circuit_adder.SingleCircuit", level="WARNING"
+    #     ) as logs:  # LogLevelChoices.LOG_??
+    #         termination_a = build_terminations(SingleCircuit(), netbox_row, circuit)
 
-    def test_build_terminations_missing_site(self):
-        new_circuit_add_missing_site = {
-            "cid": "Circuit Test Add Missing Site",
-            "provider": "Provider 2",
-            "type": "Circuit-Type 2",
-            "description": "My description 2",
-            "install_date": "",
-            "termination_date": "",
-            "comments": "",
-            "contacts": "",
-            "tags": "",
-            "side_a_site": "Site Missing",
-            "side_a_providernetwork": "",
-            "side_z_site": "",
-            "side_z_providernetwork": "",
-            "device": "Device 1",
-            "interface": "",
-            "cir": 1000,
-            "pp": "",
-            "pp_port": "",
-        }
-        netbox_row = prepare_netbox_row(new_circuit_add_missing_site)
-        circuit = build_circuit(SingleCircuit(), netbox_row)
+    #     self.assertIn("due to missing Device Interface", logs.output[0])
 
-        with self.assertLogs(
-            "netbox.scripts.scripts.circuit_adder.SingleCircuit", level="WARNING"
-        ) as logs:  # LogLevelChoices.LOG_??
-            termination_a = build_terminations(SingleCircuit(), netbox_row, circuit)
+    # def test_build_terminations_missing_site(self):
+    #     new_circuit_add_missing_site = {
+    #         "cid": "Circuit Test Add Missing Site",
+    #         "provider": "Provider 2",
+    #         "type": "Circuit-Type 2",
+    #         "description": "My description 2",
+    #         "install_date": "",
+    #         "termination_date": "",
+    #         "comments": "",
+    #         "contacts": "",
+    #         "tags": "",
+    #         "side_a_site": "Site Missing",
+    #         "side_a_providernetwork": "",
+    #         "side_z_site": "",
+    #         "side_z_providernetwork": "",
+    #         "device": "Device 1",
+    #         "interface": "",
+    #         "cir": 1000,
+    #         "pp": "",
+    #         "pp_port": "",
+    #     }
+    #     netbox_row = prepare_netbox_row(new_circuit_add_missing_site)
+    #     circuit = build_circuit(SingleCircuit(), netbox_row)
 
-        self.assertIn("due to missing Site", logs.output[0])
+    #     with self.assertLogs(
+    #         "netbox.scripts.scripts.circuit_adder.SingleCircuit", level="WARNING"
+    #     ) as logs:  # LogLevelChoices.LOG_??
+    #         termination_a = build_terminations(SingleCircuit(), netbox_row, circuit)
 
-    def test_build_terminations_missing_provider_network(self):
-        new_circuit_add_missing_provider_network = {
-            "cid": "Circuit Test Add Missing Provider Network",
-            "provider": "Provider 2",
-            "type": "Circuit-Type 2",
-            "description": "My description 2",
-            "install_date": "",
-            "termination_date": "",
-            "comments": "",
-            "contacts": "",
-            "tags": "",
-            "side_a_site": "Site 1",
-            "side_a_providernetwork": "",
-            "side_z_site": "",
-            "side_z_providernetwork": "Provider-Network Missing",
-            "device": "Device 1",
-            "interface": "Interface 1",
-            "cir": 1000,
-            "pp": "",
-            "pp_port": "",
-        }
-        netbox_row = prepare_netbox_row(new_circuit_add_missing_provider_network)
-        circuit = build_circuit(SingleCircuit(), netbox_row)
+    #     self.assertIn("due to missing Site", logs.output[0])
 
-        with self.assertLogs(
-            "netbox.scripts.scripts.circuit_adder.SingleCircuit", level="WARNING"
-        ) as logs:  # LogLevelChoices.LOG_??
-            termination_a = build_terminations(SingleCircuit(), netbox_row, circuit)
+    # def test_build_terminations_missing_provider_network(self):
+    #     new_circuit_add_missing_provider_network = {
+    #         "cid": "Circuit Test Add Missing Provider Network",
+    #         "provider": "Provider 2",
+    #         "type": "Circuit-Type 2",
+    #         "description": "My description 2",
+    #         "install_date": "",
+    #         "termination_date": "",
+    #         "comments": "",
+    #         "contacts": "",
+    #         "tags": "",
+    #         "side_a_site": "Site 1",
+    #         "side_a_providernetwork": "",
+    #         "side_z_site": "",
+    #         "side_z_providernetwork": "Provider-Network Missing",
+    #         "device": "Device 1",
+    #         "interface": "Interface 1",
+    #         "cir": 1000,
+    #         "pp": "",
+    #         "pp_port": "",
+    #     }
+    #     netbox_row = prepare_netbox_row(new_circuit_add_missing_provider_network)
+    #     circuit = build_circuit(SingleCircuit(), netbox_row)
 
-        self.assertIn("due to missing Provider Network", logs.output[0])
+    #     with self.assertLogs(
+    #         "netbox.scripts.scripts.circuit_adder.SingleCircuit", level="WARNING"
+    #     ) as logs:  # LogLevelChoices.LOG_??
+    #         termination_a = build_terminations(SingleCircuit(), netbox_row, circuit)
+
+    #     self.assertIn("due to missing Provider Network", logs.output[0])

@@ -98,10 +98,12 @@ class NiceStandardCircuit(NiceCircuit):
     allow_cable_skip: bool = False
     overwrite: bool = False
 
-    def _prepare_circuit(self) -> None:
+    def _prepare_circuit_from_csv(self) -> None:
         """
         Used to prepare netbox objects, if loaded from a CSV originally
         """
+        if self.cable_direct_to_device.lower() == "false":
+            self.cable_direct_to_device = False
         
         self.provider = utils.get_provider_by_name(self.provider)
         self.circuit_type = utils.get_circuit_type_by_name(name=self.circuit_type)
@@ -114,6 +116,23 @@ class NiceStandardCircuit(NiceCircuit):
         self.pp = utils.get_device_by_name(name=self.pp, site=self.side_a_site)
         self.pp_port = utils.get_interface_by_name(name=self.pp_port, device=self.pp)
 
+        try:
+            self.install_date = utils.validate_date(self.install_date)
+        except AbortScript as e:
+            if self.allow_cable_skip:
+                self.logger.log_warning(f"Invalid Date, skipping and setting to: 2021-02-01")
+                self.install_date = "2021-02-01"
+            else:
+                raise AbortScript(e)
+        try:
+            self.termination_date = utils.validate_date(self.termination_date)
+        except AbortScript as e:
+            if self.allow_cable_skip:
+                self.logger.log_warning(f"Invalid Date, skipping and setting to: 2021-02-01")
+                self.termination_date = "2021-02-01"
+            else:
+                raise AbortScript(e)
+            
     def _validate_data(self) -> None:
         error = False
         if not self.cid or not self.provider or not self.circuit_type:
@@ -154,7 +173,6 @@ class NiceStandardCircuit(NiceCircuit):
         Validate we have what is necessary to create the cables
         """
         error = False
-
         if self.cable_direct_to_device and (self.pp or self.pp_port):
             error = f"CID '{self.cid}': Error: Cable Direct to Device chosen, but Patch Panel also Selected."
         elif not self.cable_direct_to_device and (not self.pp or not self.pp_port):
@@ -165,6 +183,7 @@ class NiceStandardCircuit(NiceCircuit):
                 self.logger.log_warning(error)
             else:
                 raise AbortScript(error)
+
 
     def _build_termination_a(self) -> CircuitTermination:
         return CircuitTermination(
@@ -301,23 +320,19 @@ class NiceStandardCircuit(NiceCircuit):
 
     def __post_init__(self):
         if self.from_csv:
-            self._prepare_circuit()
+            self._prepare_circuit_from_csv()
         self._validate_data()
-        # utils.validate_date(self.install_date)
-        # utils.validate_date(self.termination_date)
         self._validate_cables()
-        # self.side_a = self.side_a_site
-        # self.side_z = self.side_z_providernetwork
+
         if not self.cir:
             self.cir = 0
         if not self.port_speed:
             self.port_speed = 0
         if not self.upstream_speed:
             self.upstream_speed = 0
-        if not self.install_date:
-            self.install_date = None
-        if not self.termination_date:
-            self.termination_date = None
+        self.install_date = utils.validate_date(self.install_date)
+        self.termination_date = utils.validate_date(self.termination_date)
+
 
 @dataclass
 class NiceP2PCircuit:

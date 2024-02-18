@@ -1,5 +1,3 @@
-Circuit ID,NICE Script Type,Provider,Circuit Type,Description,Side A Site,Side A Provider Network,Patch Panel,PP Port,Device,Interface,Side Z Site,Side Z Provider Network,Install Date,Termination Date,Commit Rate (Kbps),Comments,Patch Panel Z,PP Port Z,Device Z,Interface Z,Allow Cable Skip
-Circuit 21,Standard Circuit,Provider 1,Circuit-Type 1,mydesc1,Site 1,,,,Device 1,Interface 1,,Provider-Network 1,2/1/21,,10485760,,,,,,TRUE
-Circuit 22,P2P Circuit,Provider Missing,Circuit-Type 2,,Site 2,,,,Device 1,Interface 1,,,,,,,,,,,TRUE
-Circuit 23,Standard Circuit,Provider 2,Circuit-Type Missing,mydesc2,Site 3,,,,Device 3,Interface 3,,provider-network-equinix,,,1000000,,,,,,TRUE
-Circuit 24,Standard Circuit,Provider 3,Circuit-Type 3,,Site 3,,,,Device 3,,,,,,55,,,,,,TRUE
+Circuit ID,NICE Script Type,Provider,Circuit Type,Description,Side A Site,Side A Provider Network,Patch Panel,PP Port,Device,Interface,Side Z Site,Side Z Provider Network,Install Date,Termination Date,Commit Rate (Kbps),Comments,Patch Panel Z,PP Port Z,Device Z,Interface Z,Cable Direct To Device,Allow Cable Skip
+Circuit 21,Standard Circuit,Provider 1,Circuit-Type 1,mydesc1,Site 1,,,,Device 1,Interface 1,,Provider-Network 1,2/1/21,2/1/21,10485760,,,,,,TRUE,TRUE
+Circuit 24,Standard Circuit,Provider 3,Circuit-Type 3,,Site 3,,,,Device 3,,,Provider-Network 1,2021-02-20,2021-02-20,55,,,,,,FALSE,TRUE

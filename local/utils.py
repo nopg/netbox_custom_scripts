@@ -1,4 +1,6 @@
 import codecs, csv, datetime
+import dateutil.parser as date_parser
+from dateutil.parser import ParserError
 
 from circuits.choices import CircuitStatusChoices
 from circuits.models import Circuit, CircuitType, Provider, ProviderNetwork, CircuitTermination
@@ -62,12 +64,28 @@ HEADER_MAPPING = {
 # }
 
 def validate_date(date_str: str) -> None:
+    error = f"Invalid date ({date_str}), should be YYYY-MM-DD"
     try:
-        date = datetime.date.fromisoformat(date_str)
+        date = date_parser.parse(date_str)
         if date.year >= 2026 or date.year <= 1980:
             raise AbortScript(f"Date: {date_str} is outside constraints: Minimum year: 1980, Maximum year: 2026")
+    except ParserError:
+        raise AbortScript(error)
     except ValueError:
-        raise AbortScript(f"Invalid date ({date_str}), should be YYYY-MM-DD")
+        raise AbortScript(error)
+    except TypeError:
+        raise AbortScript(error)
+    return date.date().isoformat()
+
+# def validate_csv_date(date_str: str) -> datetime.datetime:
+#     if not date_str:
+#         return None
+#     try:
+#         date = date_parser.parse(date_str)
+#     except ParserError:
+#         raise AbortScript(f"Invalid Date: {date_str}")
+#     if isinstance(date, datetime.datetime):
+#         return date.date().isoformat()
     
 def validate_user(user):
     if user.username not in BULK_SCRIPT_ALLOWED_USERS:
