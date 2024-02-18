@@ -42,6 +42,7 @@ class NiceCircuit:
     device_z: Device = None
     interface_z: Interface = None
 
+    review: bool = False
 
 @dataclass
 class NiceBulkCircuits(NiceCircuit):
@@ -104,7 +105,10 @@ class NiceStandardCircuit(NiceCircuit):
         """
         if self.cable_direct_to_device.lower() == "false":
             self.cable_direct_to_device = False
-        
+
+        if self.review.lower() == "false":
+            self.review = False
+
         self.provider = utils.get_provider_by_name(self.provider)
         self.circuit_type = utils.get_circuit_type_by_name(name=self.circuit_type)
         self.side_a_site = utils.get_site_by_name(self.side_a_site)

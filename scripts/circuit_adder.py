@@ -145,6 +145,9 @@ class StandardCircuit(Script):
     overwrite = BooleanVar(
         description="Overwrite existing circuits? (same Ciruit ID & Provider == Same Circuit)", default=False
     )
+    review = BooleanVar(
+        description="Review/Update Manually Needed", default=False
+    )
 
     # Run StandardCircuit
     def run(self, data, commit):

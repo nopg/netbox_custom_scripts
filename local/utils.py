@@ -45,6 +45,7 @@ HEADER_MAPPING = {
     "Cross Connect": "xconnect_id",
     "Cable Type": "cable_type",
     "Allow Cable Skip": "allow_cable_skip",
+    "Review": "review",
 }
 
 # CABLE_COLORS = {
