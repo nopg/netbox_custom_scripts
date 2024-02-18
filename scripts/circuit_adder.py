@@ -5,15 +5,7 @@ from dcim.models import Cable, Device, Interface, RearPort, Site
 from extras.scripts import BooleanVar, ChoiceVar, FileVar, IntegerVar, ObjectVar, Script, StringVar, TextVar
 from utilities.exceptions import AbortScript
 
-from local.utils import (
-    # load_data_from_csv,
-    # prepare_netbox_data,
-    validate_user,
-    # get_side_by_name,
-    #prepare_pp_ports,
-    validate_date,
-)
-#from local.main import main_circuits_bulk, main_circuit_single, main_standard_circuit#, main_standard_class_circuit
+from local.utils import validate_user
 from local.nice import NiceStandardCircuit, NiceBulkCircuits
 
 YYYY_MM_DD = r"^\d{4}-([0]\d|1[0-2])-([0-2]\d|3[01])$"
