@@ -6,11 +6,9 @@ from dcim.models import Cable, Device, RearPort, FrontPort, Interface, RearPortT
 from utilities.exceptions import AbortScript
 
 from local.nice import NiceBulkCircuits, NiceStandardCircuit
-# from local.utils import build_cable
-# from local.nice import test
-# from dataclasses import dataclass
 
-def ct_checks():
+
+def ct_checks(self):
 	cts = CircuitTermination.objects.all()
 	# ct = Circuit.objects.filter(cid="FRO2006510455GE FRO2006510466VRP")
 	
@@ -40,6 +38,7 @@ def ct_checks():
 	print(f"{a_pn=}")
 	print(f"{z_site=}")
 	print(f"{z_pn=}")
+	self.log_info("HELLO")
 
 def cable_checks():
 	cables = []
@@ -146,8 +145,13 @@ def my_test1(logger):
 	circuit = NiceStandardCircuit(logger, **data)
 	circuit.create()
 
-def my_test_bulk(logger, filename):
-	circuits = NiceBulkCircuits.from_csv(logger=logger, filename=filename)
+def my_test_bulk(logger):
+	#filename = "local/tests/test_bulk_circuits.csv"	## Stuff doesn't exist in real DB
+	#filename = "local/tests/gui_bulk_circuits_test.csv"
+	filename = "local/tests/testing-gui_single_circuit.csv"
+	#filename = "local/tests/test_bulk_circuits_malformed.csv"
+	
+	circuits = NiceBulkCircuits.from_csv(logger=logger, filename=filename, circuit_num=1)
 
 	# from rich.pretty import pprint
 	# pprint(circuits)
@@ -155,23 +159,20 @@ def my_test_bulk(logger, filename):
 	for circuit in circuits:
 		circuit.create()
 
-
 class Test(Script):
 	class Meta:
 		name = "misc tests"
 		commit_default = False
+		scheduling_enabled = False
 
-	def run(self, data, commit):
-		#ct_checks()
+	def run(self, data, commit=True):
+		#ct_checks(self)
 		#cable_checks()
 		#term_types() 
 		#rear_front_portnames()
 		#pp_info()
 		#term_descrs()
-		try:
-			#my_test1(self)
-			#filename = "local/tests/csv_bulk_circuits_test.csv"
-			filename = "local/tests/gui_bulk_circuits_test.csv"
-			my_test_bulk(logger=self, filename=filename)
-		except AbortScript as e:
-			print(e)
+		#my_test1(self)
+
+		my_test_bulk(logger=self)
+

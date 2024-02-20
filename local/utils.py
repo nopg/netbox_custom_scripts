@@ -12,6 +12,7 @@ from django.core.exceptions import ValidationError
 from utilities.choices import ColorChoices
 from utilities.exceptions import AbortScript
 
+#from local.nice import NiceCircuit
 from local.validators import MyCircuitValidator
 
 # Type Hinting
@@ -46,6 +47,7 @@ HEADER_MAPPING = {
     "Cable Type": "cable_type",
     "Allow Cable Skip": "allow_cable_skip",
     "Review": "review",
+    "Overwrite": "overwrite",
 }
 
 # CABLE_COLORS = {
@@ -64,6 +66,12 @@ HEADER_MAPPING = {
 #     CableTypeChoices.TYPE_CAT6A: ColorChoices.COLOR_WHITE,
 # }
 
+def handle_errors(logger: Script, error: str, skip: bool = False):   
+    if skip:
+        logger(error)
+    else:
+        raise AbortScript(error)
+
 def validate_date(date_str: str) -> None:
     error = f"Invalid date ({date_str}), should be YYYY-MM-DD"
     try:
@@ -77,16 +85,6 @@ def validate_date(date_str: str) -> None:
     except TypeError:
         raise AbortScript(error)
     return date.date().isoformat()
-
-# def validate_csv_date(date_str: str) -> datetime.datetime:
-#     if not date_str:
-#         return None
-#     try:
-#         date = date_parser.parse(date_str)
-#     except ParserError:
-#         raise AbortScript(f"Invalid Date: {date_str}")
-#     if isinstance(date, datetime.datetime):
-#         return date.date().isoformat()
     
 def validate_user(user):
     if user.username not in BULK_SCRIPT_ALLOWED_USERS:
@@ -145,8 +143,23 @@ def get_interface_by_name(name: str, device: Device = None):
             interface = Interface.objects.get(name=name)
     except Interface.DoesNotExist:
         return None
+    except Interface.MultipleObjectsReturned:
+        return None
     
     return interface
+
+def get_rearport_by_name(name: str, device: Device = None):
+    try:
+        if device:
+            rearport = RearPort.objects.get(name=name, device=device)
+        else:
+            rearport = RearPort.objects.get(name=name)
+    except RearPort.DoesNotExist:
+        return None
+    except RearPort.MultipleObjectsReturned:
+        return None
+    
+    return rearport
 
 def get_side_by_name(side_site, side_providernetwork) -> Site | ProviderNetwork:
     side = get_site_by_name(side_site)
@@ -155,7 +168,7 @@ def get_side_by_name(side_site, side_providernetwork) -> Site | ProviderNetwork:
     return side
 
 def load_data_from_csv(filename) -> list[dict]:
-
+    # Check if from Netbox or via Tests
     if not isinstance(filename, InMemoryUploadedFile):
         try:
             csv_file = open(filename, "rb")
@@ -183,28 +196,41 @@ def load_data_from_csv(filename) -> list[dict]:
 
     return csv_data
 
-def save_cables(logger, cables: list, allow_cable_skip: bool = False):
+def save_cables(logger: Script, cables: list, allow_cable_skip: bool = False):
+    error = False
     for cable in cables:
         if cable:
             try:
                 cable.full_clean()
                 cable.save()
-                logger.log_success(f"Saved: '{cable}'")
+                logger.log_success(f"Saved Cable: '{cable}'")
             except ValidationError as e:
                 error = ""
                 for msg in e.messages:
                     if "Duplicate" in msg:
-                        error += f"Duplicate Cable found, unable to create Cable: {cable}\n"
+                        error += f"\tDuplicate Cable found, unable to create Cable: {cable}\n"
                     else:
-                        error += f"Validation Error saving {type(cable)}: {e.messages}\n"
+                        error += f"\tValidation Error saving Cable: {e.messages}\n"
                 
                 if not allow_cable_skip:
                     raise AbortScript(error)
                 else:
                     logger.log_failure(error)
+            except AttributeError as e:
+                error = f"\tUnknown error saving Cable: {e}"
+                logger.log_failure(f"{type(logger)}")
+                logger.log_failure(f"{logger.full_name}")
+                logger.log_failure(f"{dir(logger)}")
+                logger.log_info(f"WHAT IS THIS: {e}")
+                return error
             except Exception as e:
-                logger.log_failure(f"Unknown error saving {type(cable)}: {e}")
-                logger.log_failure(f"Type: {type(e)}")
+                logger.log_failure(f"\tUnknown errore saving Cable: {e}")
+                logger.log_failure(f"\tType: {type(e)}")
+                return e
+        if error:
+            return error
+            #handle_errors(logger.log_failure, error, allow_cable_skip)
+    
 
 def validate_circuit(circuit: Circuit) -> bool:
     b = MyCircuitValidator()
@@ -219,18 +245,14 @@ def save_circuit(circuit: Circuit, logger: Script, allow_cable_skip: bool = Fals
         try:
             circuit.full_clean()
             circuit.save()
-            logger.log_success(f"Saved circuit: '{circuit.cid}'")
+            logger.log_success(f"\tSaved Circuit: '{circuit.cid}'")
         except ValidationError as e:
             lmessages = [msg for msg in e.messages]
             messages = "\n".join(lmessages)
-            error = f"Unable to save circuit: {circuit.cid} - Failed Netbox validation: {messages}"
+            error = f"\tUnable to save circuit: {circuit.cid} - Failed Netbox validation: {messages}"
+            raise AbortScript(error)
 
-            if allow_cable_skip:
-                logger.log_failure(error)
-            else:
-                raise AbortScript(error)
-
-    return circuit
+    return None
 
 def check_circuit_duplicate(cid: str, provider: Provider) -> bool:
     # Check for duplicate
@@ -246,233 +268,8 @@ def check_circuit_duplicate(cid: str, provider: Provider) -> bool:
     else:
         return True # Duplicate found
 
-def save_terminations(terminations: list):
-    for termination in terminations:
-        if isinstance(termination, CircuitTermination):
-            termination.full_clean()
-            termination.save()
-        else:
-            pass
-            #raise AbortScript(f"Error saving termination: {termination}")
-
-
-
-# def create_circuit_from_data(netbox_row: dict[str,any]) -> Circuit:
-#     new_circuit = Circuit(
-#         cid=netbox_row["cid"],
-#         provider=netbox_row["provider"],
-#         commit_rate=netbox_row["cir"],
-#         type=netbox_row["type"],
-#         status=CircuitStatusChoices.STATUS_ACTIVE,
-#         description=netbox_row["description"],
-#         # custom_field_data={
-#         #     "salesforce_url": "https://ifconfig.co"
-#         # },
-#     )
-#     return new_circuit
-        
-
-# def check_circuit_duplicate2(netbox_row: dict[str,any]) -> bool:
-#     # Check for duplicate
-#     circ = Circuit.objects.filter(
-#         cid=netbox_row["cid"], provider__name=netbox_row["provider"]
-#     )
-#     if circ.count() == 0:  # Normal creation, no duplicate
-#         return False
-#     elif circ.count() > 1:
-#         raise AbortScript(
-#             f"Error, multiple duplicates for Circuit ID: {netbox_row['cid']}, please resolve manually."
-#         )
-#     else:
-#         return True # Duplicate found
-        
-# def update_existing_circuit(existing_circuit: Circuit, new_circuit: dict[str, any]) -> Circuit | None:
-#     for attribute in ("description", "type", "install_date", "cir", "comments"):
-#         if not new_circuit[attribute] and attribute in (UPDATED_ATTRIBUTES):
-#             setattr(existing_circuit, attribute, None)
-#         else:
-#             setattr(existing_circuit, attribute, new_circuit[attribute])
-#     return existing_circuit
-
-# def build_circuit(self: Script, netbox_row: dict[str,any], overwrite: bool = False) -> None:
-#     duplicate = check_circuit_duplicate2(netbox_row)
-#     if not duplicate: # No duplicate
-#         new_circuit = create_circuit_from_data(netbox_row)
-
-#     elif duplicate and overwrite:
-#         self.log_warning(
-#             f"Overwrites enabled, updating existing circuit: {netbox_row['cid']} ! See change log for original values."
-#         )
-#         existing_circuit = Circuit.objects.get(
-#             cid=netbox_row["cid"], provider__name=netbox_row["provider"]
-#         )
-#         if existing_circuit.pk and hasattr(existing_circuit, "snapshot"):
-#             # self.log_info(f"Creating snapshot: {circ.cid}")
-#             existing_circuit.snapshot()
-
-#         new_circuit = update_existing_circuit(existing_circuit, new_circuit=netbox_row)    
-#     else: # don't overwrite
-#         self.log_failure(
-#             f"Error, existing Circuit: {netbox_row['cid']} found and overwrites are disabled, skipping."
-#         )
-#         return None
-
-#     # Don't save yet
-#     circuit = save_circuit(new_circuit, self)
-#     return circuit
-
-
-
-
-# def build_terminations(self: Script, netbox_row: dict[str,any], circuit: Circuit) -> CircuitTermination | None:
-#     termination_a, termination_z = None, None
-
-#     if not netbox_row["side_a"]:
-#         self.log_warning(f"Skipping Side A Termination on '{netbox_row['cid']}' due to missing Site")
-#         # return None
-#     elif netbox_row["device"] and not netbox_row["interface"]:
-#         self.log_warning(f"Skipping Side A Termination on '{netbox_row['cid']}' due to missing Device Interface")
-#         # return None
-#     else:
-#         termination_a = CircuitTermination(term_side="A", site=netbox_row["side_a"], circuit=circuit)
-
-#     if not netbox_row["side_z"]:
-#         self.log_warning(f"Skipping Side Z Termination on '{netbox_row['cid']}' due to missing Provider Network")
-#         # return None
-#     else:
-#         termination_z = CircuitTermination(term_side="Z", provider_network=netbox_row["side_z"], circuit=circuit)
-#     if termination_a:
-#         if termination_z:
-#             save_terminations([termination_a, termination_z])
-#         else:
-#             save_terminations([termination_a])
-#     elif termination_z:
-#         save_terminations([termination_z])
-
-#     return termination_a, termination_z
-
-# def build_cable(self: Script, side_a: CircuitTermination | Interface, side_b: Interface, label: str = "") -> None:
-#     cable = Cable(a_terminations=[side_a], b_terminations=[side_b], type=CableTypeChoices.TYPE_SMF_OS2, label=label)
-#     #save_cable(cable)
-#     return cable
-
-
-# def validate_row(row: dict) -> bool | str:
-#     """
-#     Validate we have the required variables
-#     """
-#     missing = []
-#     error = False
-
-#     for var in REQUIRED_VARS:
-#         if row.get(var) is None:
-#             missing.append(var)
-#     if missing:
-#         columns = ", ".join(missing)
-#         error = f"'{row.get('cid')}' is missing required values(s): {columns}\n"
-    
-#     if row["side_a_site"] and row["side_a_providernetwork"]:
-#         error += f"Circuit {row['cid']} cannot have Side A Site AND Side A Provider Network Simultaneously\n"
-#     if row["side_z_site"] and row["side_z_providernetwork"]:
-#         error += f"Circuit {row['cid']} cannot have Side Z Site AND Side Z Provider Network Simultaneously\n"
-
-#     return error
-
-# def prepare_pp_ports(pp_rearport):
-#     """
-#     Get FrontPort associated with RearPort
-#     """
-#     if not isinstance(pp_rearport, RearPort):
-#         return None
-#     if pp_rearport.positions > 1:
-#         raise AbortScript(f"RearPorts with multiple positions not yet implemented: RearPort: {pp_rearport}")
-#     pp_frontport = pp_rearport.frontports.first()
-
-#     return pp_frontport
-
-
-# def prepare_netbox_row(row: dict):
-#     """
-#     Help convert CSV data into Netbox Models where necessary
-#     """
-
-#     row["provider"] = get_provider_by_name(name=row["provider"])
-#     row["type"] = get_circuit_type_by_name(name=row["type"])
-#     # skip = validate_row(row)
-
-#     # # Single Circuits are NOT allowed to skip cable creation
-#     # if not row.get("allow_cable_skip"):
-#     #     row["allow_cable_skip"] = False
-#     # if not row.get("overwrite"):
-#     #     row["overwrite"] = False
-
-#     side_a = get_side_by_name(row["side_a_site"] , row["side_a_providernetwork"])
-#     side_z = get_side_by_name(row["side_z_site"] , row["side_z_providernetwork"])
-#     if type(side_a) == Site:
-#         site = side_a
-#     elif type(side_a) == ProviderNetwork:
-#         if not skip:
-#             skip = ""
-#         skip += "\nSide Z to Device/Patch Panel without Side A Device/Patch Panel is currently unsupported."
-#         site = None
-#     else:
-#         site = None
-
-#     device = get_device_by_name(name=row["device"], site=site)
-#     interface = get_interface_by_name(name=row["interface"], device=device)
-#     pp = get_device_by_name(name=row["pp"], site=site)
-
-#     ### PP PORT FRONT/REAR
-#     pp_port = get_interface_by_name(name=row["pp_port"], device=pp)
-#     pp_frontport = prepare_pp_ports(pp_port)
-#     ### PP PORT TYPE
-
-#     # Check circuit_type == P2P
-#     # TBD for P2P Circuits
-#     device_z = None
-#     interface_z = None
-#     pp_z = get_device_by_name(name=row["pp_z"], site=site)
-#     pp_z_port = get_interface_by_name(name=row["pp_z_port"], device=pp_z)
-#     pp_z_frontport = prepare_pp_ports(pp_z_port)
-
-#     netbox_row = {
-#         "allow_cable_skip": row.get("allow_cable_skip"),
-#         "overwrite": row.get("overwrite"),
-#         "cable_direct_to_device": row.get("cable_direct_to_device"),
-#         "cid": row["cid"],
-#         "provider": row["provider"],
-#         "type": row["type"],
-#         "description": row["description"],
-#         "install_date": row["install_date"],
-#         "termination_date": row["termination_date"],
-#         "cir": row["cir"] if row["cir"] else None,
-#         "comments": row["comments"],
-#         "side_a": side_a,
-#         "device": device,
-#         "interface": interface,
-#         "pp": pp,
-#         "pp_port": pp_port,
-#         "pp_frontport": pp_frontport,
-#         "side_z": side_z,
-#         "device_z": device_z,
-#         "interface_z": interface_z,
-#         "pp_z": pp_z,
-#         "pp_port_z": pp_z_port,
-#         "pp_z_frontport": pp_z_frontport,
-#     }
-
-#     netbox_row["skip"] = skip#validate_row(netbox_row)
-#     for k,v in netbox_row.items():
-#         if k not in ("description", "comments", "install_date", "termination_date"):
-#             if v == "":
-#                 netbox_row[k] = None
-#     return netbox_row
-
-# def prepare_netbox_data(csv_data: list[dict], overwrite: bool, allow_cable_skip: bool) -> dict:
-#     circuit_data = []
-#     for row in csv_data:
-#         row["overwrite"] = overwrite
-#         row["allow_cable_skip"] = allow_cable_skip
-#         row = prepare_netbox_row(row=row)
-#         circuit_data.append(row)
-#     return circuit_data
+def save_terminations(logger: Script, termination: list):
+    if isinstance(termination, CircuitTermination):
+        termination.full_clean()
+        termination.save()
+        logger.log_success(f"\tSaved Termination: {termination}")

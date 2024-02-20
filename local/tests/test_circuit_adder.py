@@ -2,8 +2,12 @@
 # export NETBOX_CONFIGURATION=netbox.configuration_testing
 # python manage.py test scripts.testing_circuits -v 3 --keepdb
 
-from dcim.choices import InterfaceTypeChoices
-from dcim.models import Device, DeviceType, DeviceRole, Interface, Manufacturer, Site
+from django.contrib.contenttypes.models import ContentType
+
+from dcim.choices import InterfaceTypeChoices, PortTypeChoices
+from dcim.models import Device, DeviceType, DeviceRole, FrontPortTemplate, Interface, Manufacturer, RearPortTemplate, Site
+from extras.choices import CustomFieldTypeChoices
+from extras.models import CustomField
 from circuits.models import Circuit, CircuitType, CircuitTermination, Provider, ProviderNetwork
 from utilities.testing.base import TestCase
 
@@ -132,14 +136,32 @@ class CircuitAdderTestCase(TestCase):
         )
         Site.objects.bulk_create(sites)
 
+
         manufacturer = Manufacturer.objects.create(name='Manufacturer 1', slug='manufacturer-1')
         device_types = (
             DeviceType(manufacturer=manufacturer, model='Device-Type 1', slug='device-type-1'),
             DeviceType(manufacturer=manufacturer, model='Device-Type 2', slug='device-type-2'),
             DeviceType(manufacturer=manufacturer, model='Device-Type 3', slug='device-type-3'),
+            DeviceType(manufacturer=manufacturer, model='Patch-Panel Type 1', slug='patch-panel-1'),
         )
         DeviceType.objects.bulk_create(device_types)
         DeviceRole.objects.create(name='Device-Role 1', slug='device-role-1')
+
+        rearport_templates = (
+            RearPortTemplate(device_type=device_types[3], name="Rear 1", type=PortTypeChoices.TYPE_LC, positions=1),
+            RearPortTemplate(device_type=device_types[3], name="Rear 2", type=PortTypeChoices.TYPE_LC, positions=1),
+            RearPortTemplate(device_type=device_types[3], name="Rear 3", type=PortTypeChoices.TYPE_LC, positions=1),
+            RearPortTemplate(device_type=device_types[3], name="Rear 4", type=PortTypeChoices.TYPE_LC, positions=1),
+        )
+        RearPortTemplate.objects.bulk_create(rearport_templates)
+
+        frontport_templates = (
+            FrontPortTemplate(device_type=device_types[3], name="Front 1", type=PortTypeChoices.TYPE_LC, rear_port=rearport_templates[0]),
+            FrontPortTemplate(device_type=device_types[3], name="Front 2", type=PortTypeChoices.TYPE_LC, rear_port=rearport_templates[1]),
+            FrontPortTemplate(device_type=device_types[3], name="Front 3", type=PortTypeChoices.TYPE_LC, rear_port=rearport_templates[2]),
+            FrontPortTemplate(device_type=device_types[3], name="Front 4", type=PortTypeChoices.TYPE_LC, rear_port=rearport_templates[3]),
+        )
+        FrontPortTemplate.objects.bulk_create(frontport_templates)
 
         devices = (
             Device(
@@ -160,15 +182,45 @@ class CircuitAdderTestCase(TestCase):
                 device_type=device_types[2],
                 role=DeviceRole.objects.first(),
             ),
+            Device(
+                name="Patch Panel 11",
+                site=sites[0],
+                device_type=DeviceType.objects.get(model="Patch-Panel Type 1"),
+                role=DeviceRole.objects.first(),
+            ),
+            Device(
+                name="Patch Panel 12",
+                site=sites[1],
+                device_type=DeviceType.objects.get(model="Patch-Panel Type 1"),
+                role=DeviceRole.objects.first(),
+            ),
+            Device(
+                name="Patch Panel 13",
+                site=sites[2],
+                device_type=DeviceType.objects.get(model="Patch-Panel Type 1"),
+                role=DeviceRole.objects.first(),
+            ),
         )
         Device.objects.bulk_create(devices)
 
         interfaces = (
             Interface(name="Interface 1", device=devices[0], type=InterfaceTypeChoices.TYPE_1GE_FIXED),
+            Interface(name="Interface 1", device=devices[1], type=InterfaceTypeChoices.TYPE_1GE_FIXED),
+            Interface(name="Interface 1", device=devices[2], type=InterfaceTypeChoices.TYPE_1GE_FIXED),
+            Interface(name="Interface 2", device=devices[0], type=InterfaceTypeChoices.TYPE_1GE_FIXED),
             Interface(name="Interface 2", device=devices[1], type=InterfaceTypeChoices.TYPE_1GE_FIXED),
+            Interface(name="Interface 2", device=devices[2], type=InterfaceTypeChoices.TYPE_1GE_FIXED),
+            Interface(name="Interface 3", device=devices[0], type=InterfaceTypeChoices.TYPE_1GE_FIXED),
+            Interface(name="Interface 3", device=devices[1], type=InterfaceTypeChoices.TYPE_1GE_FIXED),
             Interface(name="Interface 3", device=devices[2], type=InterfaceTypeChoices.TYPE_1GE_FIXED),
         )
         Interface.objects.bulk_create(interfaces)
+
+        # Custom Fields
+        cf_review = CustomField(name="review", type=CustomFieldTypeChoices.TYPE_BOOLEAN)
+        cf_review.full_clean()
+        cf_review.save()
+        cf_review.content_types.set([ContentType.objects.get_for_model(Circuit)] )
     
     # Tests
     def test_get_provider_by_name(self):
@@ -220,9 +272,132 @@ class CircuitAdderTestCase(TestCase):
         self.assertIsNone(interface)
 
     def test_load_data_from_csv(self):
-        csv_test_filename = "local/tests/csv_bulk_circuits_test.csv"
-        circuits = NiceBulkCircuits.from_csv(logger=StandardCircuit(), overwrite=False, filename=csv_test_filename)
+        csv_test_filename = "local/tests/test_bulk_circuits.csv"
+        circuits = NiceBulkCircuits.from_csv(logger=StandardCircuit(), overwrite=False, filename=csv_test_filename, circuit_num=1)
         self.assertIsInstance(circuits[0], NiceStandardCircuit)
+
+
+    ## FAILURES
+    def test_load_data_from_csv_fail_notfound(self):
+        csv_test_filename_notfound = "local/tests/test_bulk_circuits_notfound.csv"
+        with self.assertRaisesMessage(AbortScript, "not found!"):
+            circuits = NiceBulkCircuits.from_csv(logger=StandardCircuit(), overwrite=False, filename=csv_test_filename_notfound)
+
+    def test_load_data_from_csv_fail_missing_circuittype(self):
+        csv_test_filename_fail = "local/tests/test_bulk_circuits_fail.csv"
+        with self.assertRaisesMessage(AbortScript, "Missing/Not Found Mandatory Value"):
+            circuits = NiceBulkCircuits.from_csv(logger=StandardCircuit(), overwrite=False, filename=csv_test_filename_fail, circuit_num=1)
+    
+    def test_load_data_from_csv_fail_missing_provider(self):
+        csv_test_filename_fail = "local/tests/test_bulk_circuits_fail.csv"
+        with self.assertRaisesMessage(AbortScript, "Missing/Not Found Mandatory Value"):
+            circuits = NiceBulkCircuits.from_csv(logger=StandardCircuit(), overwrite=False, filename=csv_test_filename_fail, circuit_num=2)
+
+    def test_load_data_from_csv_fail_missing_cid(self):
+        csv_test_filename_fail = "local/tests/test_bulk_circuits_fail.csv"
+        with self.assertRaisesMessage(AbortScript, "Missing/Not Found Mandatory Value"):
+            circuits = NiceBulkCircuits.from_csv(logger=StandardCircuit(), overwrite=False, filename=csv_test_filename_fail, circuit_num=3)
+
+    def test_bulk_circuit_2_overwrite_fail(self):
+        csv_test_filename_fail = "local/tests/test_bulk_circuits_fail.csv"
+        circuits = NiceBulkCircuits.from_csv(logger=StandardCircuit(), overwrite=False, filename=csv_test_filename_fail, circuit_num=4)
+        with self.assertLogs(
+            "netbox.scripts.scripts.circuit_adder.StandardCircuit", level="ERROR"
+        ) as logs: 
+            _ = circuits[0].create()
+
+        self.assertIn("overwrites are disabled", logs.output[0])
+
+    def test_bulk_circuit_3_missing_pp(self):
+        csv_test_filename_fail = "local/tests/test_bulk_circuits_fail.csv"
+        circuits = NiceBulkCircuits.from_csv(logger=StandardCircuit(), overwrite=True, filename=csv_test_filename_fail, circuit_num=6)
+        with self.assertLogs(
+            "netbox.scripts.scripts.circuit_adder.StandardCircuit", level="ERROR"
+        ) as logs:
+            print(circuits[0].cid)
+            _ = circuits[0].create()
+
+        self.assertIn("Patch Panel (or port) missing", logs.output[0])
+
+
+
+
+
+    ## SUCCESSES
+    def test_bulk_circuit_1_direct_to_device(self):
+        csv_test_filename = "local/tests/test_bulk_circuits.csv"
+        circuits = NiceBulkCircuits.from_csv(logger=StandardCircuit(), overwrite=False, filename=csv_test_filename, circuit_num=1)
+        with self.assertLogs(
+            "netbox.scripts.scripts.circuit_adder.StandardCircuit", level="INFO"
+        ) as logs:  # LogLevelChoices.LOG_SUCCESS
+            _ = circuits[0].create()
+
+        # Correct Logs
+        self.assertTrue(any("Saved Circuit:" in  log for log in logs.output))
+        term_count = sum(log.count("Saved Termination:") for log in logs.output)
+        cable_count = sum(log.count("Saved Cable:") for log in logs.output)
+        self.assertEqual(term_count, 2)
+        self.assertEqual(cable_count, 1)
+        # No warnings
+        self.assertFalse(any("WARNING" in log for log in logs.output))
+
+    def test_bulk_circuit_1_the_standard(self):
+        csv_test_filename = "local/tests/test_bulk_circuits.csv"
+        circuits = NiceBulkCircuits.from_csv(logger=StandardCircuit(), overwrite=False, filename=csv_test_filename, circuit_num=3)
+
+        # Build PP / Etc
+        device = Device(
+            site=circuits[0].site,
+            device_type=DeviceType.objects.get(model="Patch-Panel Type 1"),
+            role=DeviceRole.objects.first(),
+            name="Patch Panel 1",
+        )
+        device.save()
+
+
+        with self.assertLogs(
+            "netbox.scripts.scripts.circuit_adder.StandardCircuit", level="INFO"
+        ) as logs:  # LogLevelChoices.LOG_SUCCESS
+            _ = circuits[0].create()
+
+        # Correct Logs
+        self.assertTrue(any("Saved Circuit:" in  log for log in logs.output))
+        term_count = sum(log.count("Saved Termination:") for log in logs.output)
+        cable_count = sum(log.count("Saved Cable:") for log in logs.output)
+        self.assertEqual(term_count, 2)
+        self.assertEqual(cable_count, 2)
+        # No warnings
+        self.assertFalse(any("WARNING" in log for log in logs.output))
+        # No errors
+        self.assertFalse(any("ERROR" in log for log in logs.output))
+
+
+
+
+    ## WARNINGS
+    def test_bulk_circuit_2_overwrite_circuit(self):
+        csv_test_filename = "local/tests/test_bulk_circuits.csv"
+        circuits = NiceBulkCircuits.from_csv(logger=StandardCircuit(), overwrite=True, filename=csv_test_filename, circuit_num=2)
+        with self.assertLogs(
+            "netbox.scripts.scripts.circuit_adder.StandardCircuit", level="INFO"
+        ) as logs:  # LogLevelChoices.LOG_SUCCESS
+            _ = circuits[0].create()
+
+        # Correct Logs
+        self.assertTrue(any("updating existing circuit!" in  log for log in logs.output))
+        self.assertTrue(any("Saved Circuit:" in  log for log in logs.output))
+        term_count = sum(log.count("Saved Termination:") for log in logs.output)
+        cable_count = sum(log.count("Saved Cable:") for log in logs.output)
+        self.assertEqual(term_count, 2)
+        self.assertEqual(cable_count, 1)
+        # No warnings
+        self.assertFalse(any("ERROR" in log for log in logs.output))
+        # New Date (actually overwritten)
+        c = Circuit.objects.get(cid="Circuit 1")
+        import dateutil.parser as dp
+        date = dp.parse("1999-09-09").date()
+        self.assertEqual(c.install_date, date)
+
 
     #     # Load File
     #     script_dir = os.path.dirname(__file__)

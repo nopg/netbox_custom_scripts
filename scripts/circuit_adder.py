@@ -44,6 +44,7 @@ class StandardCircuit(Script):
                     "termination_date",
                     "xconnect_id",
                     "pp_info",
+                    "review",
                     "comments",
                 ),
             ),
@@ -142,11 +143,9 @@ class StandardCircuit(Script):
         label="Extra Patch Panel Info",
         required=False,
     )
+    review = BooleanVar(description="Extra Review Needed?", default=False)
     overwrite = BooleanVar(
         description="Overwrite existing circuits? (same Ciruit ID & Provider == Same Circuit)", default=False
-    )
-    review = BooleanVar(
-        description="Review/Update Manually Needed", default=False
     )
 
     # Run StandardCircuit

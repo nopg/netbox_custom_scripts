@@ -9,8 +9,10 @@ pull:
 	scp nicnb:/opt/netbox/netbox/scripts/testing.py ./tests/
 
 push_csv_tests:
-	scp test_csvs/csv_bulk_circuits_test.csv nicnb:/opt/netbox/netbox/local/tests/
+	scp test_csvs/test_bulk_circuits.csv nicnb:/opt/netbox/netbox/local/tests/
+	scp test_csvs/test_bulk_circuits_fail.csv nicnb:/opt/netbox/netbox/local/tests/
 	scp test_csvs/gui_bulk_circuits_test.csv nicnb:/opt/netbox/netbox/local/tests/
+	scp test_csvs/testing-gui_single_circuit.csv nicnb:/opt/netbox/netbox/local/tests/
 
 initial_push:
 	@echo "If you want to run 'make push': "
