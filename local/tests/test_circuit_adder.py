@@ -142,7 +142,7 @@ class CircuitAdderTestCase(TestCase):
             DeviceType(manufacturer=manufacturer, model='Device-Type 1', slug='device-type-1'),
             DeviceType(manufacturer=manufacturer, model='Device-Type 2', slug='device-type-2'),
             DeviceType(manufacturer=manufacturer, model='Device-Type 3', slug='device-type-3'),
-            DeviceType(manufacturer=manufacturer, model='Patch-Panel Type 1', slug='patch-panel-1'),
+            DeviceType(manufacturer=manufacturer, model='Patch-Panel-Type 1', slug='patch-panel-1'),
         )
         DeviceType.objects.bulk_create(device_types)
         DeviceRole.objects.create(name='Device-Role 1', slug='device-role-1')
@@ -185,19 +185,19 @@ class CircuitAdderTestCase(TestCase):
             Device(
                 name="Patch Panel 11",
                 site=sites[0],
-                device_type=DeviceType.objects.get(model="Patch-Panel Type 1"),
+                device_type=DeviceType.objects.get(model="Patch-Panel-Type 1"),
                 role=DeviceRole.objects.first(),
             ),
             Device(
                 name="Patch Panel 12",
                 site=sites[1],
-                device_type=DeviceType.objects.get(model="Patch-Panel Type 1"),
+                device_type=DeviceType.objects.get(model="Patch-Panel-Type 1"),
                 role=DeviceRole.objects.first(),
             ),
             Device(
                 name="Patch Panel 13",
                 site=sites[2],
-                device_type=DeviceType.objects.get(model="Patch-Panel Type 1"),
+                device_type=DeviceType.objects.get(model="Patch-Panel-Type 1"),
                 role=DeviceRole.objects.first(),
             ),
         )
@@ -286,21 +286,21 @@ class CircuitAdderTestCase(TestCase):
     def test_load_data_from_csv_fail_missing_circuittype(self):
         csv_test_filename_fail = "local/tests/test_bulk_circuits_fail.csv"
         with self.assertRaisesMessage(AbortScript, "Missing/Not Found Mandatory Value"):
-            circuits = NiceBulkCircuits.from_csv(logger=StandardCircuit(), overwrite=False, filename=csv_test_filename_fail, circuit_num=1)
+            circuits = NiceBulkCircuits.from_csv(logger=StandardCircuit(), filename=csv_test_filename_fail, circuit_num=1)
     
     def test_load_data_from_csv_fail_missing_provider(self):
         csv_test_filename_fail = "local/tests/test_bulk_circuits_fail.csv"
         with self.assertRaisesMessage(AbortScript, "Missing/Not Found Mandatory Value"):
-            circuits = NiceBulkCircuits.from_csv(logger=StandardCircuit(), overwrite=False, filename=csv_test_filename_fail, circuit_num=2)
+            circuits = NiceBulkCircuits.from_csv(logger=StandardCircuit(), filename=csv_test_filename_fail, circuit_num=2)
 
     def test_load_data_from_csv_fail_missing_cid(self):
         csv_test_filename_fail = "local/tests/test_bulk_circuits_fail.csv"
         with self.assertRaisesMessage(AbortScript, "Missing/Not Found Mandatory Value"):
-            circuits = NiceBulkCircuits.from_csv(logger=StandardCircuit(), overwrite=False, filename=csv_test_filename_fail, circuit_num=3)
+            circuits = NiceBulkCircuits.from_csv(logger=StandardCircuit(), filename=csv_test_filename_fail, circuit_num=3)
 
     def test_bulk_circuit_2_overwrite_fail(self):
         csv_test_filename_fail = "local/tests/test_bulk_circuits_fail.csv"
-        circuits = NiceBulkCircuits.from_csv(logger=StandardCircuit(), overwrite=False, filename=csv_test_filename_fail, circuit_num=4)
+        circuits = NiceBulkCircuits.from_csv(logger=StandardCircuit(), filename=csv_test_filename_fail, circuit_num=4)
         with self.assertLogs(
             "netbox.scripts.scripts.circuit_adder.StandardCircuit", level="ERROR"
         ) as logs: 
@@ -308,13 +308,19 @@ class CircuitAdderTestCase(TestCase):
 
         self.assertIn("overwrites are disabled", logs.output[0])
 
-    def test_bulk_circuit_3_missing_pp(self):
+    def test_bulk_circuit_3_missing_device(self):
         csv_test_filename_fail = "local/tests/test_bulk_circuits_fail.csv"
-        circuits = NiceBulkCircuits.from_csv(logger=StandardCircuit(), overwrite=True, filename=csv_test_filename_fail, circuit_num=6)
+        circuits = NiceBulkCircuits.from_csv(logger=StandardCircuit(), filename=csv_test_filename_fail, circuit_num=5)
+
+        with self.assertRaisesMessage(AbortScript, "Missing Device"):
+            circuits[0].create()
+
+    def test_bulk_circuit_4_missing_pp(self):
+        csv_test_filename_fail = "local/tests/test_bulk_circuits_fail.csv"
+        circuits = NiceBulkCircuits.from_csv(logger=StandardCircuit(), filename=csv_test_filename_fail, circuit_num=6)
         with self.assertLogs(
             "netbox.scripts.scripts.circuit_adder.StandardCircuit", level="ERROR"
         ) as logs:
-            print(circuits[0].cid)
             _ = circuits[0].create()
 
         self.assertIn("Patch Panel (or port) missing", logs.output[0])
@@ -342,18 +348,17 @@ class CircuitAdderTestCase(TestCase):
         self.assertFalse(any("WARNING" in log for log in logs.output))
 
     def test_bulk_circuit_1_the_standard(self):
-        csv_test_filename = "local/tests/test_bulk_circuits.csv"
-        circuits = NiceBulkCircuits.from_csv(logger=StandardCircuit(), overwrite=False, filename=csv_test_filename, circuit_num=3)
-
         # Build PP / Etc
         device = Device(
-            site=circuits[0].site,
-            device_type=DeviceType.objects.get(model="Patch-Panel Type 1"),
+            site=Site.objects.first(),
+            device_type=DeviceType.objects.get(model="Patch-Panel-Type 1"),
             role=DeviceRole.objects.first(),
             name="Patch Panel 1",
         )
         device.save()
 
+        csv_test_filename = "local/tests/test_bulk_circuits.csv"
+        circuits = NiceBulkCircuits.from_csv(logger=StandardCircuit(), overwrite=False, filename=csv_test_filename, circuit_num=3)
 
         with self.assertLogs(
             "netbox.scripts.scripts.circuit_adder.StandardCircuit", level="INFO"

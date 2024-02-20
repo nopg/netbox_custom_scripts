@@ -156,7 +156,7 @@ class NiceStandardCircuit(NiceCircuit):
         self.interface = utils.get_interface_by_name(name=self.interface, device=self.device)
         self.pp = utils.get_device_by_name(name=self.pp, site=self.side_a_site)
         self.pp_port = utils.get_rearport_by_name(name=self.pp_port, device=self.pp)
-
+        
         try:
             self.install_date = utils.validate_date(self.install_date)
         except AbortScript as e:
@@ -216,7 +216,9 @@ class NiceStandardCircuit(NiceCircuit):
         Validate we have what is necessary to create the cables
         """
         error = False
-        if self.cable_direct_to_device and (self.pp or self.pp_port):
+        if self.device is None or self.interface is None:
+            error = f"\tCID '{self.cid}': Error: Missing Device and/or Interface."
+        elif self.cable_direct_to_device and (self.pp or self.pp_port):
             error = f"\tCID '{self.cid}': Error: Cable Direct to Device chosen, but Patch Panel also Selected."
         elif not self.cable_direct_to_device and (self.pp is None or self.pp_port is None):
             error = f"\tCID '{self.cid}': Error: Patch Panel (or port) missing, and 'Cable Direct to Device' is not checked."
@@ -293,11 +295,8 @@ class NiceStandardCircuit(NiceCircuit):
     def _build_device_cable(self) -> Cable:
         if not self.device or not self.interface:
             error = f"CID '{self.cid}': Unable to create cable to the device for circuit: {self.cid}"
-            if self.allow_cable_skip:
-                self.logger.log_warning(error)
-                return None
-            else:
-                raise AbortScript(error)
+            utils.handle_errors(self.logger.log_failure, error, self.allow_cable_skip)
+            return
 
         if self.cable_direct_to_device:
             side_a = self.termination_a  # Site
@@ -393,9 +392,9 @@ class NiceStandardCircuit(NiceCircuit):
     def create_cables(self):
         error = self._validate_cables()
         if error:
-            
             utils.handle_errors(self.logger.log_failure, error, self.allow_cable_skip)
             return
+        
         self.pp_cable = self._build_pp_cable()
         self.device_cable = self._build_device_cable()
 
