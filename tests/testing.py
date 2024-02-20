@@ -151,7 +151,7 @@ def my_test_bulk(logger):
 	filename = "local/tests/testing-gui_single_circuit.csv"
 	#filename = "local/tests/test_bulk_circuits_malformed.csv"
 	
-	circuits = NiceBulkCircuits.from_csv(logger=logger, filename=filename, circuit_num=3)
+	circuits = NiceBulkCircuits.from_csv(logger=logger, filename=filename)#, circuit_num=3)
 
 	# from rich.pretty import pprint
 	# pprint(circuits)

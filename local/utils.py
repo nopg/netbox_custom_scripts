@@ -1,21 +1,21 @@
-import codecs, csv, datetime
+import csv
+import codecs
+import datetime
 import dateutil.parser as date_parser
 from dateutil.parser import ParserError
+
+from django.core.exceptions import ValidationError
+from extras.scripts import Script
 
 from circuits.choices import CircuitStatusChoices
 from circuits.models import Circuit, CircuitType, Provider, ProviderNetwork, CircuitTermination
 from dcim.choices import CableTypeChoices
 from dcim.models import Cable, Device, Interface, RearPort, Site
-from extras.scripts import Script
-
-from django.core.exceptions import ValidationError
 from utilities.choices import ColorChoices
 from utilities.exceptions import AbortScript
 
-#from local.nice import NiceCircuit
 from local.validators import MyCircuitValidator
 
-# Type Hinting
 from django.core.files.uploadedfile import InMemoryUploadedFile
 
 BULK_SCRIPT_ALLOWED_USERS = ["netbox", "danny.berman", "joe.deweese", "loran.fuchs"]
@@ -50,125 +50,95 @@ HEADER_MAPPING = {
     "Overwrite": "overwrite",
 }
 
-# CABLE_COLORS = {
-#     CableTypeChoices.TYPE_SMF: ColorChoices.COLOR_YELLOW,
-#     CableTypeChoices.TYPE_SMF_OS1: ColorChoices.COLOR_YELLOW,
-#     CableTypeChoices.TYPE_SMF_OS2: ColorChoices.COLOR_YELLOW,
-#     CableTypeChoices.TYPE_MMF: ColorChoices.COLOR_AQUA,
-#     CableTypeChoices.TYPE_MMF_OM1: ColorChoices.COLOR_AQUA,
-#     CableTypeChoices.TYPE_MMF_OM2: ColorChoices.COLOR_AQUA,
-#     CableTypeChoices.TYPE_MMF_OM3: ColorChoices.COLOR_AQUA,
-#     CableTypeChoices.TYPE_MMF_OM4: ColorChoices.COLOR_AQUA,
-#     CableTypeChoices.TYPE_MMF_OM5: ColorChoices.COLOR_AQUA,
-#     CableTypeChoices.TYPE_CAT5: ColorChoices.COLOR_WHITE,
-#     CableTypeChoices.TYPE_CAT5E: ColorChoices.COLOR_WHITE,
-#     CableTypeChoices.TYPE_CAT6: ColorChoices.COLOR_WHITE,
-#     CableTypeChoices.TYPE_CAT6A: ColorChoices.COLOR_WHITE,
-# }
-
-def handle_errors(logger: Script, error: str, skip: bool = False):   
+def handle_errors(logger: Script, error: str, skip: bool = False):
+    """
+    Handle errors based on the skip parameter.
+    """
     if skip:
         logger(error)
     else:
         raise AbortScript(error)
 
-def validate_date(date_str: str) -> None:
+def validate_date(date_str: str) -> str:
+    """
+    Validate the date string format and return the ISO formatted date.
+    """
     error = f"Invalid date ({date_str}), should be YYYY-MM-DD"
     try:
         date = date_parser.parse(date_str)
-        if date.year >= 2026 or date.year <= 1980:
+        if not 1980 <= date.year <= 2026:
             raise AbortScript(f"Date: {date_str} is outside constraints: Minimum year: 1980, Maximum year: 2026")
-    except ParserError:
-        raise AbortScript(error)
-    except ValueError:
-        raise AbortScript(error)
-    except TypeError:
+    except (ParserError, ValueError, TypeError):
         raise AbortScript(error)
     return date.date().isoformat()
-    
-def validate_user(user):
-    if user.username not in BULK_SCRIPT_ALLOWED_USERS:
-        return False
-    else:
-        return True
 
-def get_provider_by_name(name: str):
-    try:
-        provider = Provider.objects.get(name=name)
-    except Provider.DoesNotExist:
-        return None
+def validate_user(user) -> bool:
+    """
+    Validate if the user is allowed to perform bulk operations.
+    """
+    return user.username in BULK_SCRIPT_ALLOWED_USERS
 
-    return provider
+def get_provider_by_name(name: str) -> Provider | None:
+    """
+    Retrieve a provider by name.
+    """
+    return Provider.objects.filter(name=name).first()
 
-def get_provider_network_by_name(name: str):
-    try:
-        provider_network = ProviderNetwork.objects.get(name=name)
-    except ProviderNetwork.DoesNotExist:
-        return None
+def get_provider_network_by_name(name: str) -> ProviderNetwork | None:
+    """
+    Retrieve a provider network by name.
+    """
+    return ProviderNetwork.objects.filter(name=name).first()
 
-    return provider_network
+def get_circuit_type_by_name(name: str) -> CircuitType | None:
+    """
+    Retrieve a circuit type by name.
+    """
+    return CircuitType.objects.filter(name=name).first()
 
-def get_circuit_type_by_name(name: str):
-    try:
-        _type = CircuitType.objects.get(name=name)
-    except CircuitType.DoesNotExist:
-        return None
-    
-    return _type
+def get_site_by_name(name: str) -> Site | None:
+    """
+    Retrieve a site by name.
+    """
+    return Site.objects.filter(name=name).first()
 
-def get_site_by_name(name: str):
-    try:
-        site = Site.objects.get(name=name)
-    except Site.DoesNotExist:
-        return None
-    
-    return site
+def get_device_by_name(name: str, site: Site = None) -> Device | None:
+    """
+    Retrieve a device by name.
+    """
+    if site:
+        return Device.objects.filter(name=name, site=site).first()
+    return Device.objects.filter(name=name).first()
 
-def get_device_by_name(name: str, site: Site = None):
-    try:
-        if not site:
-            device = Device.objects.get(name=name)
-        else:
-            device = Device.objects.get(name=name, site=site)
-    except Device.DoesNotExist:
-        return None
-    
-    return device
+def get_interface_by_name(name: str, device: Device = None) -> Interface | None:
+    """
+    Retrieve an interface by name.
+    """
+    if device:
+        return Interface.objects.filter(name=name, device=device).first()
+    return Interface.objects.filter(name=name).first()
 
-def get_interface_by_name(name: str, device: Device = None):
-    try:
-        if device:
-            interface = Interface.objects.get(name=name, device=device)
-        else:
-            interface = Interface.objects.get(name=name)
-    except Interface.DoesNotExist:
-        return None
-    except Interface.MultipleObjectsReturned:
-        return None
-    
-    return interface
-
-def get_rearport_by_name(name: str, device: Device = None):
-    try:
-        if device:
-            rearport = RearPort.objects.get(name=name, device=device)
-        else:
-            rearport = RearPort.objects.get(name=name)
-    except RearPort.DoesNotExist:
-        return None
-    except RearPort.MultipleObjectsReturned:
-        return None
-    
-    return rearport
+def get_rearport_by_name(name: str, device: Device = None) -> RearPort | None:
+    """
+    Retrieve a rear port by name.
+    """
+    if device:
+        return RearPort.objects.filter(name=name, device=device).first()
+    return RearPort.objects.filter(name=name).first()
 
 def get_side_by_name(side_site, side_providernetwork) -> Site | ProviderNetwork:
+    """
+    Retrieve a site or provider network by name.
+    """
     side = get_site_by_name(side_site)
     if not side:
         side = get_provider_network_by_name(side_providernetwork)
     return side
 
 def load_data_from_csv(filename) -> list[dict]:
-    # Check if from Netbox or via Tests
+    """
+    Load data from a CSV file and map header names to new names.
+    """
     if not isinstance(filename, InMemoryUploadedFile):
         try:
             csv_file = open(filename, "rb")
@@ -180,14 +150,11 @@ def load_data_from_csv(filename) -> list[dict]:
     circuits_csv = csv.DictReader(codecs.iterdecode(csv_file, "utf-8"))
 
     csv_data = []
-    # Update Dictionary Keys / Headers
     for row in circuits_csv:
         csv_row = {}
         for old_header, value in row.items():
             if old_header in HEADER_MAPPING:
                 csv_row[HEADER_MAPPING[old_header]] = value
-
-                # Add any missing fields we may check later
                 for old_header, new_header in HEADER_MAPPING.items():
                     if not csv_row.get(new_header):
                         csv_row[new_header] = ""
@@ -197,6 +164,9 @@ def load_data_from_csv(filename) -> list[dict]:
     return csv_data
 
 def save_cables(logger: Script, cables: list, allow_cable_skip: bool = False):
+    """
+    Save cables and handle any errors.
+    """
     error = False
     for cable in cables:
         if cable:
@@ -224,20 +194,24 @@ def save_cables(logger: Script, cables: list, allow_cable_skip: bool = False):
                 logger.log_info(f"WHAT IS THIS: {e}")
                 return error
             except Exception as e:
-                logger.log_failure(f"\tUnknown errore saving Cable: {e}")
+                logger.log_failure(f"\tUnknown error saving Cable: {e}")
                 logger.log_failure(f"\tType: {type(e)}")
                 return e
         if error:
             return error
-            #handle_errors(logger.log_failure, error, allow_cable_skip)
-    
 
 def validate_circuit(circuit: Circuit) -> bool:
+    """
+    Validate a circuit.
+    """
     b = MyCircuitValidator()
     failed = b.validate(circuit=circuit, manual=True)
     return failed
 
 def save_circuit(circuit: Circuit, logger: Script, allow_cable_skip: bool = False):
+    """
+    Save a circuit and handle any errors.
+    """
     error = validate_circuit(circuit)
     if error:
         logger.log_failure(f"Failed custom validation: {error}")
@@ -255,20 +229,19 @@ def save_circuit(circuit: Circuit, logger: Script, allow_cable_skip: bool = Fals
     return None
 
 def check_circuit_duplicate(cid: str, provider: Provider) -> bool:
-    # Check for duplicate
-    circ = Circuit.objects.filter(
-        cid=cid, provider=provider
-    )
+    """
+    Check for duplicate circuits.
+    """
+    circ = Circuit.objects.filter(cid=cid, provider=provider)
     if circ.count() == 0:  # Normal creation, no duplicate
         return False
-    elif circ.count() > 1:
-        raise AbortScript(
-            f"Error, multiple duplicates for Circuit ID: {cid}, please resolve manually."
-        )
     else:
         return True # Duplicate found
 
 def save_terminations(logger: Script, termination: list):
+    """
+    Save terminations.
+    """
     if isinstance(termination, CircuitTermination):
         termination.full_clean()
         termination.save()
