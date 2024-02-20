@@ -34,6 +34,16 @@ class NiceCircuit:
     upstream_speed: int = 0
     pp_info: str = ""
 
+    pp: Device = None
+    pp_port: RearPort = None
+    pp_new_port: str = ""  # IMPLEMENT
+    create_pp_port: bool = False  # IMPLEMENT
+
+    cable_direct_to_device: bool = False
+    allow_cable_skip: bool = False
+    overwrite: bool = False
+    review: bool = False
+
     from_csv: bool = False
     side_a_providernetwork: ProviderNetwork = None
     side_z_site: Site = None
@@ -43,7 +53,127 @@ class NiceCircuit:
     interface_z: Interface = None
     overwrite: bool = False
 
+    def __post_init__(self):
+        if self.from_csv:
+            self._prepare_circuit_from_csv()
+        self._validate_data()
+        if not self.cir:
+            self.cir = 0
+        if not self.port_speed:
+            self.port_speed = 0
+        if not self.upstream_speed:
+            self.upstream_speed = 0
+        self._set_custom_fields()
+    
+    def _set_custom_fields(self):
+        self.custom_fields = {
+            "review": self.review,
+        }
 
+    def _fix_bools(self, value) -> None:
+        if isinstance(value, bool):
+            return value
+        return value.lower() == "true"
+
+    def _prepare_circuit_from_csv(self) -> None:
+        """
+        Used to prepare netbox objects, if loaded from a CSV originally
+        """
+        for field in ["cable_direct_to_device", "allow_cable_skip", "review", "overwrite"]:
+            value = getattr(self, field)
+            setattr(self, field, self._fix_bools(value))
+
+        self.provider = utils.get_provider_by_name(self.provider)
+        self.circuit_type = utils.get_circuit_type_by_name(name=self.circuit_type)
+        self.side_a_site = utils.get_site_by_name(self.side_a_site)
+        self.side_a_providernetwork = utils.get_provider_network_by_name(self.side_a_providernetwork)
+        self.side_z_site = utils.get_site_by_name(self.side_z_site)
+        self.side_z_providernetwork = utils.get_provider_network_by_name(self.side_z_providernetwork)
+        self.device = utils.get_device_by_name(name=self.device, site=self.side_a_site)
+        self.interface = utils.get_interface_by_name(name=self.interface, device=self.device)
+        self.pp = utils.get_device_by_name(name=self.pp, site=self.side_a_site)
+        self.pp_port = utils.get_rearport_by_name(name=self.pp_port, device=self.pp)
+
+        self.install_date = utils.validate_date(self.install_date)
+        self.termination_date = utils.validate_date(self.termination_date)
+
+    def _validate_data(self) -> None:
+        error = False
+        if not all([self.cid, self.provider, self.circuit_type]):
+            error = (
+                f"Missing/Not Found Mandatory Value for either: Circuit ID ({self.cid}), "
+                f"Provider ({self.provider}), or Circuit Type ({self.circuit_type})"
+            )
+
+        if error:
+            raise AbortScript(error)
+
+    def _build_circuit(self) -> Circuit:
+        return Circuit(
+            cid=self.cid,
+            provider=self.provider,
+            type=self.circuit_type,
+            status=CircuitStatusChoices.STATUS_ACTIVE,
+            description=self.description,
+            commit_rate=self.cir,
+            install_date=self.install_date,
+            termination_date=self.termination_date,
+            custom_field_data=self.custom_fields,
+        )
+
+    def _update_circuit(self, circuit: Circuit) -> Circuit:
+        circuit.type = self.circuit_type
+        circuit.status = CircuitStatusChoices.STATUS_ACTIVE
+        circuit.description = self.description
+        circuit.commit_rate = self.cir
+        circuit.install_date = self.install_date
+        circuit.termination_date = self.termination_date
+        circuit.custom_field_data = self.custom_fields
+        return circuit
+
+    @property
+    def pp_frontport(self) -> FrontPort:
+        """
+        Get FrontPort associated with RearPort
+        """
+        if not isinstance(self.pp_port, RearPort):
+            return None
+        if self.pp_port.positions > 1:
+            raise AbortScript(f"RearPorts with multiple positions not yet implemented: RearPort: {self.pp_port}")
+
+        return self.pp_port.frontports.first()
+
+    def create_circuit(self) -> Circuit:
+        """
+        Create & Save Netbox Circuit
+        """
+        duplicate = utils.check_circuit_duplicate(self.cid, self.provider)
+        if not duplicate:  # No duplicate
+            self.circuit = self._build_circuit()
+        elif duplicate and self.overwrite:
+            self.logger.log_warning(
+                f"CID '{self.cid}': Overwrites enabled, updating existing circuit! See change log for original values."
+            )
+            # Updating existing circuit, create snapshot (change log)
+            self.circuit = Circuit.objects.get(cid=self.cid, provider__name=self.provider)
+            if self.circuit.pk and hasattr(self.circuit, "snapshot"):
+                self.circuit.snapshot()
+
+            self.circuit = self._update_circuit(self.circuit)
+        else:  # don't overwrite
+            error = f"CID '{self.cid}': Error, existing Circuit found and overwrites are disabled"
+            self.circuit = None
+            utils.handle_errors(self.logger.log_failure, error, self.allow_cable_skip)
+
+        if self.circuit:
+            try:
+                utils.save_circuit(self.circuit, self.logger, allow_cable_skip=self.allow_cable_skip)
+            except AbortScript as e:
+                if self.allow_cable_skip:
+                    return e
+                else:
+                    raise AbortScript(e)
+        
 @dataclass
 class NiceBulkCircuits(NiceCircuit):
 
@@ -76,84 +206,25 @@ class NiceBulkCircuits(NiceCircuit):
                     error += f"{row}"
                     error += f"\n{e}\n"
                     raise AbortScript(error)
+            elif row.get("nice_script_type") == "P2P Circuit":
+                del row["nice_script_type"]
+                try:
+                    circuits.append(NiceP2PCircuit(**row))
+                except TypeError as e:
+                    error = "Malformed/Unsupported CSV Columns:\n"
+                    error += f"{row}"
+                    error += f"\n{e}\n"
+                    raise AbortScript(error)
         return circuits
 
 
 @dataclass
 class NiceStandardCircuit(NiceCircuit):
-    pp: Device = None
-    pp_port: RearPort = None
-    pp_new_port: str = ""  # IMPLEMENT
-    create_pp_port: bool = False  # IMPLEMENT
-
-    cable_direct_to_device: bool = False
-    allow_cable_skip: bool = False
-    overwrite: bool = False
-    review: bool = False
-
-    def _fix_bools(self, value) -> None:
-        if isinstance(value, bool):
-            return value
-        return value.lower() == "true"
-
-    def _prepare_circuit_from_csv(self) -> None:
-        """
-        Used to prepare netbox objects, if loaded from a CSV originally
-        """
-        for field in ["cable_direct_to_device", "allow_cable_skip", "review", "overwrite"]:
-            value = getattr(self, field)
-            setattr(self, field, self._fix_bools(value))
-
-        self.provider = utils.get_provider_by_name(self.provider)
-        self.circuit_type = utils.get_circuit_type_by_name(name=self.circuit_type)
-        self.side_a_site = utils.get_site_by_name(self.side_a_site)
-        self.side_z_providernetwork = utils.get_provider_network_by_name(self.side_z_providernetwork)
-        self.device = utils.get_device_by_name(name=self.device, site=self.side_a_site)
-        self.interface = utils.get_interface_by_name(name=self.interface, device=self.device)
-        self.pp = utils.get_device_by_name(name=self.pp, site=self.side_a_site)
-        self.pp_port = utils.get_rearport_by_name(name=self.pp_port, device=self.pp)
-
-        self.install_date = utils.validate_date(self.install_date)
-        self.termination_date = utils.validate_date(self.termination_date)
-
-    def _validate_data(self) -> None:
-        error = False
-        if not all([self.cid, self.provider, self.circuit_type]):
-            error = (
-                f"Missing/Not Found Mandatory Value for either: Circuit ID ({self.cid}), "
-                f"Provider ({self.provider}), or Circuit Type ({self.circuit_type})"
-            )
-
-        if error:
-            raise AbortScript(error)
-
-    def _set_custom_fields(self):
-        self.custom_fields = {
-            "review": self.review,
-        }
-
-    def _build_circuit(self) -> Circuit:
-        return Circuit(
-            cid=self.cid,
-            provider=self.provider,
-            type=self.circuit_type,
-            status=CircuitStatusChoices.STATUS_ACTIVE,
-            description=self.description,
-            commit_rate=self.cir,
-            install_date=self.install_date,
-            termination_date=self.termination_date,
-            custom_field_data=self.custom_fields,
-        )
-
-    def _update_circuit(self, circuit: Circuit) -> Circuit:
-        circuit.type = self.circuit_type
-        circuit.status = CircuitStatusChoices.STATUS_ACTIVE
-        circuit.description = self.description
-        circuit.commit_rate = self.cir
-        circuit.install_date = self.install_date
-        circuit.termination_date = self.termination_date
-        circuit.custom_field_data = self.custom_fields
-        return circuit
+    """
+    The Standard NICE Circuit (device <-> patch panel (optional) <-> site <-> provider_network)
+    """
+    def __post_init__(self):
+        super().__post_init__()
 
     def _validate_cables(self) -> None:
         """
@@ -224,18 +295,6 @@ class NiceStandardCircuit(NiceCircuit):
 
         return termination
 
-    @property
-    def pp_frontport(self) -> FrontPort:
-        """
-        Get FrontPort associated with RearPort
-        """
-        if not isinstance(self.pp_port, RearPort):
-            return None
-        if self.pp_port.positions > 1:
-            raise AbortScript(f"RearPorts with multiple positions not yet implemented: RearPort: {self.pp_port}")
-
-        return self.pp_port.frontports.first()
-
     def _build_device_cable(self) -> Cable:
         if not self.device or not self.interface:
             error = f"CID '{self.cid}': Unable to create cable to the device for circuit: {self.cid}"
@@ -276,37 +335,6 @@ class NiceStandardCircuit(NiceCircuit):
             type=CableTypeChoices.TYPE_SMF_OS2,
             label=label,
         )
-
-    def create_circuit(self) -> Circuit:
-        """
-        Create & Save Netbox Circuit
-        """
-        duplicate = utils.check_circuit_duplicate(self.cid, self.provider)
-        if not duplicate:  # No duplicate
-            self.circuit = self._build_circuit()
-        elif duplicate and self.overwrite:
-            self.logger.log_warning(
-                f"CID '{self.cid}': Overwrites enabled, updating existing circuit! See change log for original values."
-            )
-            # Updating existing circuit, create snapshot (change log)
-            self.circuit = Circuit.objects.get(cid=self.cid, provider__name=self.provider)
-            if self.circuit.pk and hasattr(self.circuit, "snapshot"):
-                self.circuit.snapshot()
-
-            self.circuit = self._update_circuit(self.circuit)
-        else:  # don't overwrite
-            error = f"CID '{self.cid}': Error, existing Circuit found and overwrites are disabled"
-            self.circuit = None
-            utils.handle_errors(self.logger.log_failure, error, self.allow_cable_skip)
-
-        if self.circuit:
-            try:
-                utils.save_circuit(self.circuit, self.logger, allow_cable_skip=self.allow_cable_skip)
-            except AbortScript as e:
-                if self.allow_cable_skip:
-                    return e
-                else:
-                    raise AbortScript(e)
 
     def create_termination_a(self):
         if isinstance(self.side_a_site, Site):
@@ -352,7 +380,7 @@ class NiceStandardCircuit(NiceCircuit):
     def create(self):
         self.logger.log_info(f"Beginning {self.cid} creation..")
 
-        error = self.create_circuit()
+        error = super().create_circuit()
         if error:
             utils.handle_errors(self.logger.log_failure, error, self.allow_cable_skip)
             return
@@ -375,23 +403,18 @@ class NiceStandardCircuit(NiceCircuit):
 
         self.logger.log_info(f"Finished {self.cid}.")
 
-    def __post_init__(self):
-        if self.from_csv:
-            self._prepare_circuit_from_csv()
-        self._validate_data()
-
-        if not self.cir:
-            self.cir = 0
-        if not self.port_speed:
-            self.port_speed = 0
-        if not self.upstream_speed:
-            self.upstream_speed = 0
-        self.install_date = utils.validate_date(self.install_date)
-        self.termination_date = utils.validate_date(self.termination_date)
-        self._set_custom_fields()
-
 
 @dataclass
-class NiceP2PCircuit:
+class NiceP2PCircuit(NiceCircuit):
+    """
+    P2P NICE Circuit (device <-> patch panel (optional) <-> site <-> site <-> patch panel (optional) <-> device)
+    """
     def __post_init__(self):
-        ...
+        super().__post_init__()
+
+    def create(self):
+        self.logger.log_info(f"Beginning P2P {self.cid} creation..")
+        error = super().create_circuit()
+        if error:
+            utils.handle_errors(self.logger.log_failure, error, self.allow_cable_skip)
+            return
