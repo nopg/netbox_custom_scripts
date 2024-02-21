@@ -172,7 +172,7 @@ def save_cables(logger: Script, cables: list, allow_cable_skip: bool = False):
             try:
                 cable.full_clean()
                 cable.save()
-                logger.log_success(f"Saved Cable: '{cable}'")
+                logger.log_success(f"\tSaved Cable: '{cable}'")
             except ValidationError as e:
                 error = ""
                 for msg in e.messages:
@@ -180,14 +180,14 @@ def save_cables(logger: Script, cables: list, allow_cable_skip: bool = False):
                         error += f"\tDuplicate Cable found, unable to create Cable: {cable}\n"
                     else:
                         error += f"\tValidation Error saving Cable: {e.messages}\n"
-                handle_errors(logger, error, allow_cable_skip)
+                handle_errors(logger.log_failure, error, allow_cable_skip)
             except AttributeError as e:
                 error = f"\tUnknown error saving Cable: {e}"
-                handle_errors(logger, error, allow_cable_skip)
+                handle_errors(logger.log_failure, error, allow_cable_skip)
             except Exception as e:
                 error = f"\tUnknown error saving Cable: {e}"
                 error += f"\tType: {type(e)}"
-                handle_errors(logger, error, allow_cable_skip)
+                handle_errors(logger.log_failure, error, allow_cable_skip)
 
 def validate_circuit(circuit: Circuit) -> bool:
     """
@@ -203,7 +203,8 @@ def save_circuit(circuit: Circuit, logger: Script, allow_cable_skip: bool = Fals
     """
     error = validate_circuit(circuit)
     if error:
-        logger.log_failure(f"Failed custom validation: {error}")
+        error += f"Failed custom validation: {error}"
+        handle_errors(logger.log_failure, error, allow_cable_skip)
     else:
         try:
             circuit.full_clean()
@@ -213,7 +214,7 @@ def save_circuit(circuit: Circuit, logger: Script, allow_cable_skip: bool = Fals
             lmessages = [msg for msg in e.messages]
             messages = "\n".join(lmessages)
             error = f"\tUnable to save circuit: {circuit.cid} - Failed Netbox validation: {messages}"
-            handle_errors(logger, error, allow_cable_skip)
+            handle_errors(logger.log_failure, error, allow_cable_skip)
 
     return None
 

@@ -261,10 +261,10 @@ class NiceCircuit:
             utils.handle_errors(self.logger.log_failure, error, self.allow_cable_skip)
             return
 
-        label = f"{self.cid}: {self.device}/{self.interface} <-> {a_side_label}"
+        label = f"{self.cid}: {device}/{interface} <-> {a_side_label}"
 
         return Cable(
-            a_terminations=[a_side], b_terminations=[self.interface], type=CableTypeChoices.TYPE_SMF_OS2, label=label
+            a_terminations=[a_side], b_terminations=[interface], type=CableTypeChoices.TYPE_SMF_OS2, label=label
         )
 
     def _build_pp_x_cable(self, pp: Device, pp_port: RearPort, a_side: CircuitTermination | Interface):
@@ -282,21 +282,21 @@ class NiceCircuit:
 
         return Cable(
             a_terminations=[a_side],
-            b_terminations=[self.pp_port],
+            b_terminations=[pp_port],
             type=CableTypeChoices.TYPE_SMF_OS2,
             label=label,
         )
 
-    def create_standard_cables(self, pp: Device, pp_port: RearPort, device: Device, interface: Interface):
+    def create_standard_cables(self, pp: Device, pp_port: RearPort, device: Device, interface: Interface, termination: CircuitTermination):
         valid = self._validate_x_cables(pp, pp_port, device, interface)
         if not valid:
             return
 
-        pp_cable = self._build_pp_x_cable(pp, pp_port, a_side=self.termination_a)  # CREATE A VAR?!
+        pp_cable = self._build_pp_x_cable(pp, pp_port, a_side=termination)  # CREATE A VAR?!
 
         if self.cable_direct_to_device:
-            device_side_a = self.termination_a
-            label = f"{self.termination_a}"
+            device_side_a = termination
+            label = f"{termination}"
         else:
             device_side_a = self.get_frontport(pp_port)
             label = f"{self.pp}/{self.get_frontport(pp_port)}"
@@ -335,7 +335,7 @@ class NiceCircuit:
 
         return circuit
 
-    def create_standard(self) -> None:
+    def create_standard(self, p2p: bool = False) -> None:
         self.circuit = self.create_circuit()
         if not self.circuit:
             return
@@ -350,8 +350,7 @@ class NiceCircuit:
         if not self.termination_z:
             return
 
-        self.create_standard_cables(self.pp, self.pp_port, self.device, self.interface)
-        self.logger.log_info(f"Finished {self.cid}.")
+        self.create_standard_cables(self.pp, self.pp_port, self.device, self.interface, self.termination_a)
 
     def create_p2p(self) -> None:
         self.circuit = self.create_circuit()
@@ -361,15 +360,13 @@ class NiceCircuit:
         self.termination_a = self.create_site_termination(side="A", site=self.side_a_site)
         if not self.termination_a:
             return
-
-        self.termination_z = self.create_provider_network_termination(
-            side="Z", provider_network=self.side_z_providernetwork
-        )
+        
+        self.termination_z = self.create_site_termination(side="Z", site=self.side_z_site)
         if not self.termination_z:
             return
-
-        self.create_standard_cables(self.pp, self.pp_port, self.device, self.interface)
-        self.logger.log_info(f"Finished {self.cid}.")
+        
+        self.create_standard_cables(self.pp, self.pp_port, self.device, self.interface, self.termination_a)
+        self.create_standard_cables(self.z_pp, self.z_pp_port, self.z_device, self.z_interface, self.termination_z)
 
 @dataclass
 class NiceBulkCircuits(NiceCircuit):
@@ -393,7 +390,6 @@ class NiceBulkCircuits(NiceCircuit):
             if not row["overwrite"]:
                 if overwrite:
                     row["overwrite"] = "True"
-
             if row.get("nice_script_type") == "Standard Circuit":
                 del row["nice_script_type"]
                 try:
@@ -428,8 +424,9 @@ class NiceStandardCircuit(NiceCircuit):
         """
         Standard Circuit Creation
         """
-        self.logger.log_info(f"Beginning P2P {self.cid} creation..")
+        self.logger.log_info(f"Beginning Standard {self.cid} / {self.description} creation..")
         super().create_standard()
+        self.logger.log_info(f"Finished {self.cid}.")
 
 
 @dataclass
@@ -442,7 +439,8 @@ class NiceP2PCircuit(NiceCircuit):
         super().__post_init__()
 
     def create(self):
-        self.logger.log_info(f"Beginning P2P {self.cid} creation..")
-        super().create_standard()
-
+        self.logger.log_info(f"Beginning P2P {self.cid} / {self.description} creation..")
+        #super().create_standard()
+        super().create_p2p()
+        self.logger.log_info(f"Finished {self.cid}.")
 
