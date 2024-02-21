@@ -168,7 +168,8 @@ def my_p2p_tests(logger):
 
 	for circuit in circuits:
 		if isinstance(circuit, NiceStandardCircuit):
-			print(f"Standard, yuk: {circuit}")
+			#print(f"Standard, yuk: {circuit}")
+			pass
 		else:
 			circuit.create()
 
@@ -187,6 +188,6 @@ class Test(Script):
 		#term_descrs()
 		#my_test1(self)
 
-		#my_test_bulk(logger=self)
-		my_p2p_tests(self)
+		my_test_bulk(logger=self)
+		#my_p2p_tests(self)
 

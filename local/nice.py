@@ -47,10 +47,10 @@ class NiceCircuit:
     from_csv: bool = False
     side_a_providernetwork: ProviderNetwork = None
     side_z_site: Site = None
-    pp_z: Device = None
-    pp_z_port: RearPort = None
-    device_z: Device = None
-    interface_z: Interface = None
+    z_pp: Device = None
+    z_pp_port: RearPort = None
+    z_device: Device = None
+    z_interface: Interface = None
     overwrite: bool = False
 
     def __post_init__(self):
@@ -86,16 +86,21 @@ class NiceCircuit:
         self.provider = utils.get_provider_by_name(self.provider)
         self.circuit_type = utils.get_circuit_type_by_name(name=self.circuit_type)
         self.side_a_site = utils.get_site_by_name(self.side_a_site)
-        self.side_a_providernetwork = utils.get_provider_network_by_name(self.side_a_providernetwork)
-        self.side_z_site = utils.get_site_by_name(self.side_z_site)
+        # self.side_a_providernetwork = utils.get_provider_network_by_name(self.side_a_providernetwork) -- never needed?
+        self.side_z_site = utils.get_site_by_name(self.side_z_site) # P2P
         self.side_z_providernetwork = utils.get_provider_network_by_name(self.side_z_providernetwork)
         self.device = utils.get_device_by_name(name=self.device, site=self.side_a_site)
         self.interface = utils.get_interface_by_name(name=self.interface, device=self.device)
         self.pp = utils.get_device_by_name(name=self.pp, site=self.side_a_site)
         self.pp_port = utils.get_rearport_by_name(name=self.pp_port, device=self.pp)
-
         self.install_date = utils.validate_date(self.install_date)
         self.termination_date = utils.validate_date(self.termination_date)
+
+        # P2P
+        self.z_device = utils.get_device_by_name(name=self.z_device, site=self.side_z_site)
+        self.z_interface = utils.get_interface_by_name(name=self.z_interface, device=self.z_device)
+        self.z_pp = utils.get_device_by_name(name=self.z_pp, site=self.side_z_site)
+        self.z_pp_port = utils.get_rearport_by_name(name=self.z_pp_port, device=self.z_pp)
 
     def _validate_data(self) -> None:
         error = False
@@ -108,6 +113,97 @@ class NiceCircuit:
         if error:
             raise AbortScript(error)
 
+
+    def _build_site_termination(self, side: str, site: Site) -> CircuitTermination:
+        termination = None
+        existing = self.circuit.terminations.all()
+        if len(existing) > 0:
+            for term in existing:
+                if term.term_side == side:
+                    if term.site != site:
+                        return f"CID {self.cid}: Cannot change existing termination{side.upper()} to new Site, skipping."
+                    else:
+                        if self.overwrite:
+                            termination = term
+        if not termination:
+            termination = CircuitTermination(
+                term_side=side,
+                site=site,
+                circuit=self.circuit,
+                port_speed=self.port_speed,
+                upstream_speed=self.upstream_speed,
+                xconnect_id=self.xconnect_id,
+            )
+        else:
+            termination.port_speed = self.port_speed
+            termination.upstream_speed = self.upstream_speed
+            termination.xconnect_id = self.xconnect_id
+
+        return termination
+
+    def create_site_termination(self, side: str, site: Site):
+        if isinstance(site, Site):
+            termination_x = self._build_site_termination(side, site)
+
+            if not isinstance(termination_x, CircuitTermination):
+                error = termination_x
+                return error
+            
+            utils.save_terminations(logger=self.logger, termination=termination_x)
+        else:
+            error = f"CID '{self.cid}': Missing Site for Termination {side}"
+            #self.termination_a = None ---neeeded?!?
+            utils.handle_errors(self.logger.log_warning, error, self.allow_cable_skip)
+            return error
+        
+        return termination_x
+
+##################
+
+####################
+
+    def _build_provider_network_termination(self) -> CircuitTermination:
+        termination = None
+        existing = self.circuit.terminations.all()
+        if len(existing) > 0:
+            for term in existing:
+                if term.term_side == "Z":
+                    if term.provider_network != self.side_z_providernetwork:
+                        return f"CID {self.cid}: Cannot change existing termination Z to new Provider, skipping."
+                    else:
+                        if self.overwrite:
+                            termination = term
+        if not termination:
+            termination = CircuitTermination(
+                term_side="Z",
+                provider_network=self.side_z_providernetwork,
+                circuit=self.circuit,
+                port_speed=self.port_speed,
+                upstream_speed=self.upstream_speed,
+                xconnect_id=self.xconnect_id,
+            )
+        else:
+            termination.port_speed = self.port_speed
+            termination.upstream_speed = self.upstream_speed
+            termination.xconnect_id = self.xconnect_id
+
+        return termination
+
+
+    def create_provider_network_termination(self):
+        if isinstance(self.side_z_providernetwork, ProviderNetwork):
+            self.termination_z = self._build_termination_z()
+
+            if not isinstance(self.termination_z, CircuitTermination):
+                return self.termination_z  # Error
+            utils.save_terminations(logger=self.logger, termination=self.termination_z)
+        else:
+            self.termination_z = None
+            error = f"CID '{self.cid}': Missing Provider Network for Termination Z"
+            return error
+
+##########################
+    
     def _build_circuit(self) -> Circuit:
         return Circuit(
             cid=self.cid,
@@ -143,6 +239,157 @@ class NiceCircuit:
 
         return self.pp_port.frontports.first()
 
+    def _validate_cables(self) -> None:
+        """
+        Validate we have what is necessary to create the cables
+        """
+        error = False
+        if self.device is None or self.interface is None:
+            error = f"\tCID '{self.cid}': Error: Missing Device and/or Interface."
+        elif self.cable_direct_to_device and (self.pp or self.pp_port):
+            error = f"\tCID '{self.cid}': Error: Cable Direct to Device chosen, but Patch Panel also Selected."
+        elif not self.cable_direct_to_device and (self.pp is None or self.pp_port is None):
+            error = f"\tCID '{self.cid}': Error: Patch Panel (or port) missing, and 'Cable Direct to Device' is not checked."
+
+        if error:
+            return error
+
+    # def _build_termination_a(self) -> CircuitTermination:
+    #     termination = None
+    #     existing = self.circuit.terminations.all()
+    #     if len(existing) > 0:
+    #         for term in existing:
+    #             if term.term_side == "A":
+    #                 if term.site != self.side_a_site:
+    #                     return f"CID {self.cid}: Cannot change existing termination A to new Site, skipping."
+    #                 else:
+    #                     if self.overwrite:
+    #                         termination = term
+    #     if not termination:
+    #         termination = CircuitTermination(
+    #             term_side="A",
+    #             site=self.side_a_site,
+    #             circuit=self.circuit,
+    #             port_speed=self.port_speed,
+    #             upstream_speed=self.upstream_speed,
+    #             xconnect_id=self.xconnect_id,
+    #         )
+    #     else:
+    #         termination.port_speed = self.port_speed
+    #         termination.upstream_speed = self.upstream_speed
+    #         termination.xconnect_id = self.xconnect_id
+
+    #     return termination
+
+    def _build_termination_z(self) -> CircuitTermination:
+        termination = None
+        existing = self.circuit.terminations.all()
+        if len(existing) > 0:
+            for term in existing:
+                if term.term_side == "Z":
+                    if term.provider_network != self.side_z_providernetwork:
+                        return f"CID {self.cid}: Cannot change existing termination Z to new Provider, skipping."
+                    else:
+                        if self.overwrite:
+                            termination = term
+        if not termination:
+            termination = CircuitTermination(
+                term_side="Z",
+                provider_network=self.side_z_providernetwork,
+                circuit=self.circuit,
+                port_speed=self.port_speed,
+                upstream_speed=self.upstream_speed,
+                xconnect_id=self.xconnect_id,
+            )
+        else:
+            termination.port_speed = self.port_speed
+            termination.upstream_speed = self.upstream_speed
+            termination.xconnect_id = self.xconnect_id
+
+        return termination
+
+    def _build_device_cable(self) -> Cable:
+            if not self.device or not self.interface:
+                error = f"CID '{self.cid}': Unable to create cable to the device for circuit: {self.cid}"
+                utils.handle_errors(self.logger.log_failure, error, self.allow_cable_skip)
+                return
+
+            if self.cable_direct_to_device:
+                side_a = self.termination_a  # Site
+                label = f"{self.cid}: {self.device}/{self.interface} <-> {self.termination_a}"
+            else:
+                side_a = self.pp_frontport
+                label = f"{self.cid}: {self.device}/{self.interface} <-> {self.pp}/{self.pp_frontport}"
+
+            return Cable(
+                a_terminations=[side_a], b_terminations=[self.interface], type=CableTypeChoices.TYPE_SMF_OS2, label=label
+            )
+
+    def _build_pp_cable(self):
+        """
+        Build Patch Panel Cable
+        """
+        if self.cable_direct_to_device:
+            return None
+
+        if not all([self.pp, self.pp_port, self.pp_frontport]):
+            error = f"CID '{self.cid}': Unable to create cable to Patch Panel for circuit: {self.cid}"
+            if self.allow_cable_skip:
+                self.logger.log_warning(error)
+                return None
+            else:
+                raise AbortScript(error)
+
+        label = f"{self.cid}: {self.pp}/{self.pp_port} <-> {self.termination_a}"
+
+        return Cable(
+            a_terminations=[self.termination_a],
+            b_terminations=[self.pp_port],
+            type=CableTypeChoices.TYPE_SMF_OS2,
+            label=label,
+        )
+
+    # def create_termination_a(self):
+    #     if isinstance(self.side_a_site, Site):
+    #         self.termination_a = self._build_termination_a()
+
+    #         if not isinstance(self.termination_a, CircuitTermination):
+    #             return self.termination_a  # Error
+    #         utils.save_terminations(logger=self.logger, termination=self.termination_a)
+    #     else:
+    #         error = f"CID '{self.cid}': Missing Site for Termination A"
+    #         self.termination_a = None
+    #         utils.handle_errors(self.logger.log_warning, error, self.allow_cable_skip)
+    #         return error
+
+    def create_termination_z(self):
+        if isinstance(self.side_z_providernetwork, ProviderNetwork):
+            self.termination_z = self._build_termination_z()
+
+            if not isinstance(self.termination_z, CircuitTermination):
+                return self.termination_z  # Error
+            utils.save_terminations(logger=self.logger, termination=self.termination_z)
+        else:
+            self.termination_z = None
+            error = f"CID '{self.cid}': Missing Provider Network for Termination Z"
+            return error
+
+    def create_cables(self):
+        error = self._validate_cables()
+        if error:
+            utils.handle_errors(self.logger.log_failure, error, self.allow_cable_skip)
+            return
+
+        self.pp_cable = self._build_pp_cable()
+        self.device_cable = self._build_device_cable()
+
+        error = utils.save_cables(
+            logger=self.logger, allow_cable_skip=self.allow_cable_skip, cables=[self.pp_cable, self.device_cable]
+        )
+        if error:
+            utils.handle_errors(self.logger.log_failure, error, self.allow_cable_skip)
+            return error
+
     def create_circuit(self) -> Circuit:
         """
         Create & Save Netbox Circuit
@@ -173,7 +420,37 @@ class NiceCircuit:
                     return e
                 else:
                     raise AbortScript(e)
+
+    def create(self) -> None:
+        error = self.create_circuit()
+        if error:
+            utils.handle_errors(self.logger.log_failure, error, self.allow_cable_skip)
+            return
+
+        #error = self.create_termination_a()
+        self.termination_a = self.create_site_termination(side="A", site=self.side_a_site)
+        if not isinstance(self.termination_a, CircuitTermination):
+            error = self.termination_a
+            utils.handle_errors(self.logger.log_warning, error, self.allow_cable_skip)
+            return
+
+        try:    
+            error = self.create_termination_z()
+        except Exception as e:
+            self.logger.log_failure(f"my error: {e}")
+
+        if error:
+            utils.handle_errors(self.logger.log_warning, error, self.allow_cable_skip)
+            return
+
+        error = self.create_cables()
+        if error:
+            self.logger.log_info(error)
+            utils.handle_errors(self.logger.log_warning, error, self.allow_cable_skip)
+
+        self.logger.log_info(f"Finished {self.cid}.")
         
+
 @dataclass
 class NiceBulkCircuits(NiceCircuit):
 
@@ -226,182 +503,9 @@ class NiceStandardCircuit(NiceCircuit):
     def __post_init__(self):
         super().__post_init__()
 
-    def _validate_cables(self) -> None:
-        """
-        Validate we have what is necessary to create the cables
-        """
-        error = False
-        if self.device is None or self.interface is None:
-            error = f"\tCID '{self.cid}': Error: Missing Device and/or Interface."
-        elif self.cable_direct_to_device and (self.pp or self.pp_port):
-            error = f"\tCID '{self.cid}': Error: Cable Direct to Device chosen, but Patch Panel also Selected."
-        elif not self.cable_direct_to_device and (self.pp is None or self.pp_port is None):
-            error = f"\tCID '{self.cid}': Error: Patch Panel (or port) missing, and 'Cable Direct to Device' is not checked."
-
-        if error:
-            return error
-
-    def _build_termination_a(self) -> CircuitTermination:
-        termination = None
-        existing = self.circuit.terminations.all()
-        if len(existing) > 0:
-            for term in existing:
-                if term.term_side == "A":
-                    if term.site != self.side_a_site:
-                        return f"CID {self.cid}: Cannot change existing termination A to new Site, skipping."
-                    else:
-                        if self.overwrite:
-                            termination = term
-        if not termination:
-            termination = CircuitTermination(
-                term_side="A",
-                site=self.side_a_site,
-                circuit=self.circuit,
-                port_speed=self.port_speed,
-                upstream_speed=self.upstream_speed,
-                xconnect_id=self.xconnect_id,
-            )
-        else:
-            termination.port_speed = self.port_speed
-            termination.upstream_speed = self.upstream_speed
-            termination.xconnect_id = self.xconnect_id
-
-        return termination
-
-    def _build_termination_z(self) -> CircuitTermination:
-        termination = None
-        existing = self.circuit.terminations.all()
-        if len(existing) > 0:
-            for term in existing:
-                if term.term_side == "Z":
-                    if term.provider_network != self.side_z_providernetwork:
-                        return f"CID {self.cid}: Cannot change existing termination Z to new Provider, skipping."
-                    else:
-                        if self.overwrite:
-                            termination = term
-        if not termination:
-            termination = CircuitTermination(
-                term_side="Z",
-                provider_network=self.side_z_providernetwork,
-                circuit=self.circuit,
-                port_speed=self.port_speed,
-                upstream_speed=self.upstream_speed,
-                xconnect_id=self.xconnect_id,
-            )
-        else:
-            termination.port_speed = self.port_speed
-            termination.upstream_speed = self.upstream_speed
-            termination.xconnect_id = self.xconnect_id
-
-        return termination
-
-    def _build_device_cable(self) -> Cable:
-        if not self.device or not self.interface:
-            error = f"CID '{self.cid}': Unable to create cable to the device for circuit: {self.cid}"
-            utils.handle_errors(self.logger.log_failure, error, self.allow_cable_skip)
-            return
-
-        if self.cable_direct_to_device:
-            side_a = self.termination_a  # Site
-            label = f"{self.cid}: {self.device}/{self.interface} <-> {self.termination_a}"
-        else:
-            side_a = self.pp_frontport
-            label = f"{self.cid}: {self.device}/{self.interface} <-> {self.pp}/{self.pp_frontport}"
-
-        return Cable(
-            a_terminations=[side_a], b_terminations=[self.interface], type=CableTypeChoices.TYPE_SMF_OS2, label=label
-        )
-
-    def _build_pp_cable(self):
-        """
-        Build Patch Panel Cable
-        """
-        if self.cable_direct_to_device:
-            return None
-
-        if not all([self.pp, self.pp_port, self.pp_frontport]):
-            error = f"CID '{self.cid}': Unable to create cable to Patch Panel for circuit: {self.cid}"
-            if self.allow_cable_skip:
-                self.logger.log_warning(error)
-                return None
-            else:
-                raise AbortScript(error)
-
-        label = f"{self.cid}: {self.pp}/{self.pp_port} <-> {self.termination_a}"
-
-        return Cable(
-            a_terminations=[self.termination_a],
-            b_terminations=[self.pp_port],
-            type=CableTypeChoices.TYPE_SMF_OS2,
-            label=label,
-        )
-
-    def create_termination_a(self):
-        if isinstance(self.side_a_site, Site):
-            self.termination_a = self._build_termination_a()
-
-            if not isinstance(self.termination_a, CircuitTermination):
-                return self.termination_a  # Error
-            utils.save_terminations(logger=self.logger, termination=self.termination_a)
-        else:
-            error = f"CID '{self.cid}': Missing Site for Termination A"
-            self.termination_a = None
-            utils.handle_errors(self.logger.log_warning, error, self.allow_cable_skip)
-            return error
-
-    def create_termination_z(self):
-        if isinstance(self.side_z_providernetwork, ProviderNetwork):
-            self.termination_z = self._build_termination_z()
-
-            if not isinstance(self.termination_z, CircuitTermination):
-                return self.termination_z  # Error
-            utils.save_terminations(logger=self.logger, termination=self.termination_z)
-        else:
-            self.termination_z = None
-            error = f"CID '{self.cid}': Missing Provider Network for Termination Z"
-            return error
-
-    def create_cables(self):
-        error = self._validate_cables()
-        if error:
-            utils.handle_errors(self.logger.log_failure, error, self.allow_cable_skip)
-            return
-
-        self.pp_cable = self._build_pp_cable()
-        self.device_cable = self._build_device_cable()
-
-        error = utils.save_cables(
-            logger=self.logger, allow_cable_skip=self.allow_cable_skip, cables=[self.pp_cable, self.device_cable]
-        )
-        if error:
-            utils.handle_errors(self.logger.log_failure, error, self.allow_cable_skip)
-            return error
-
     def create(self):
-        self.logger.log_info(f"Beginning {self.cid} creation..")
-
-        error = super().create_circuit()
-        if error:
-            utils.handle_errors(self.logger.log_failure, error, self.allow_cable_skip)
-            return
-
-        error = self.create_termination_a()
-        if error:
-            utils.handle_errors(self.logger.log_warning, error, self.allow_cable_skip)
-            return
-
-        error = self.create_termination_z()
-        if error:
-            utils.handle_errors(self.logger.log_warning, error, self.allow_cable_skip)
-            return
-
-        error = self.create_cables()
-        if error:
-            print(error)
-            self.logger.log_info(error)
-            utils.handle_errors(self.logger.log_warning, error, self.allow_cable_skip)
-
-        self.logger.log_info(f"Finished {self.cid}.")
+        self.logger.log_info(f"Beginning Standard {self.cid} creation..")
+        super().create()
 
 
 @dataclass
@@ -414,7 +518,5 @@ class NiceP2PCircuit(NiceCircuit):
 
     def create(self):
         self.logger.log_info(f"Beginning P2P {self.cid} creation..")
-        error = super().create_circuit()
-        if error:
-            utils.handle_errors(self.logger.log_failure, error, self.allow_cable_skip)
-            return
+        super().create()
+    
