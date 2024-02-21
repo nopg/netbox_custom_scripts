@@ -5,6 +5,7 @@ from circuits.models import Circuit, CircuitTermination, CircuitType, Provider, 
 from dcim.models import Cable, Device, RearPort, FrontPort, Interface, RearPortTemplate, FrontPortTemplate, Site
 from utilities.exceptions import AbortScript
 
+from local import utils
 from local.nice import NiceBulkCircuits, NiceStandardCircuit
 
 
@@ -174,6 +175,24 @@ def my_p2p_tests(logger):
 		else:
 			circuit.create()
 
+def	my_pp_updater_tests(logger: Script):
+	pp = Device.objects.get(name="mypatchpanel3")
+	data = {
+		"pp": pp,
+		"old_frontport_name": "Front1",
+		"new_frontport_name": "myFront 1",
+		"old_rearport_name": "Back1",
+		"new_rearport_name": "Rear1"
+	}
+	# data = {
+	# 	"pp": pp,
+	# 	"new_frontport_name": "Front1",
+	# 	"old_frontport_name": "myFront 1",
+	# 	"new_rearport_name": "Back1",
+	# 	"old_rearport_name": "Rear1"
+	# }
+	_ = utils.pp_port_update(logger, **data)
+
 class Test(Script):
 	class Meta:
 		name = "misc tests"
@@ -190,5 +209,6 @@ class Test(Script):
 		#my_test1(self)
 
 		#my_test_bulk(logger=self)
-		my_p2p_tests(self)
+		#my_p2p_tests(self)
+		my_pp_updater_tests(self)
 

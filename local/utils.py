@@ -15,6 +15,7 @@ from utilities.choices import ColorChoices
 from utilities.exceptions import AbortScript
 
 from local.validators import MyCircuitValidator
+import re
 
 from django.core.files.uploadedfile import InMemoryUploadedFile
 
@@ -48,7 +49,10 @@ HEADER_MAPPING = {
     "Allow Cable Skip": "allow_cable_skip",
     "Review": "review",
     "Overwrite": "overwrite",
+    "Create PP Port": "create_pp_port",
+    "Create PP Z Port": "create_z_pp_port",
 }
+
 
 def handle_errors(logger: Script, error: str, skip: bool = False):
     """
@@ -58,6 +62,13 @@ def handle_errors(logger: Script, error: str, skip: bool = False):
         logger(error)
     else:
         raise AbortScript(error)
+
+
+def fix_bools(value) -> None:
+    if isinstance(value, bool):
+        return value
+    return value.lower() == "true"
+
 
 def validate_date(date_str: str) -> str:
     """
@@ -72,11 +83,13 @@ def validate_date(date_str: str) -> str:
         raise AbortScript(error)
     return date.date().isoformat()
 
+
 def validate_user(user) -> bool:
     """
     Validate if the user is allowed to perform bulk operations.
     """
     return user.username in BULK_SCRIPT_ALLOWED_USERS
+
 
 def get_provider_by_name(name: str) -> Provider | None:
     """
@@ -84,11 +97,13 @@ def get_provider_by_name(name: str) -> Provider | None:
     """
     return Provider.objects.filter(name=name).first()
 
+
 def get_provider_network_by_name(name: str) -> ProviderNetwork | None:
     """
     Retrieve a provider network by name.
     """
     return ProviderNetwork.objects.filter(name=name).first()
+
 
 def get_circuit_type_by_name(name: str) -> CircuitType | None:
     """
@@ -96,11 +111,13 @@ def get_circuit_type_by_name(name: str) -> CircuitType | None:
     """
     return CircuitType.objects.filter(name=name).first()
 
+
 def get_site_by_name(name: str) -> Site | None:
     """
     Retrieve a site by name.
     """
     return Site.objects.filter(name=name).first()
+
 
 def get_device_by_name(name: str, site: Site = None) -> Device | None:
     """
@@ -110,6 +127,7 @@ def get_device_by_name(name: str, site: Site = None) -> Device | None:
         return Device.objects.filter(name=name, site=site).first()
     return Device.objects.filter(name=name).first()
 
+
 def get_interface_by_name(name: str, device: Device = None) -> Interface | None:
     """
     Retrieve an interface by name.
@@ -117,6 +135,7 @@ def get_interface_by_name(name: str, device: Device = None) -> Interface | None:
     if device:
         return Interface.objects.filter(name=name, device=device).first()
     return Interface.objects.filter(name=name).first()
+
 
 def get_rearport_by_name(name: str, device: Device = None) -> RearPort | None:
     """
@@ -126,6 +145,7 @@ def get_rearport_by_name(name: str, device: Device = None) -> RearPort | None:
         return RearPort.objects.filter(name=name, device=device).first()
     return RearPort.objects.filter(name=name).first()
 
+
 def get_side_by_name(side_site, side_providernetwork) -> Site | ProviderNetwork:
     """
     Retrieve a site or provider network by name.
@@ -134,6 +154,7 @@ def get_side_by_name(side_site, side_providernetwork) -> Site | ProviderNetwork:
     if not side:
         side = get_provider_network_by_name(side_providernetwork)
     return side
+
 
 def load_data_from_csv(filename) -> list[dict]:
     """
@@ -163,6 +184,54 @@ def load_data_from_csv(filename) -> list[dict]:
 
     return csv_data
 
+
+def _pp_port_update(logger, port, old, new, revert_if_failed) -> None:
+    
+    old_name = port.name
+    if old not in old_name:
+        error = f"{old} was not found in the port name, typo?"
+        handle_errors(logger.log_warning, error, revert_if_failed)
+
+    port.name = port.name.replace(old, new)
+    if port.name == old_name:
+        error = f"Name did not change from {old_name}. New: {new}"
+        handle_errors(logger.log_failure, error, not revert_if_failed)
+    try:
+        port.full_clean()
+        port.save()
+        logger.log_success(f"Renamed {old_name} to: {port.name}")
+    except (AttributeError, TypeError, ValidationError) as e:
+        raise AbortScript(e)
+
+def pp_port_update(
+    logger: Script,
+    pp: Device,
+    old_frontport_name: str,
+    new_frontport_name: str,
+    old_rearport_name: str,
+    new_rearport_name: str,
+    revert_if_failed: bool = True,
+) -> None:
+    frontports = pp.frontports.all()
+    rearports = pp.rearports.all()
+
+    # Remove the last number after the string
+    old = re.sub(r'\d+$', '', old_frontport_name)
+    new = re.sub(r'\d+$', '', new_frontport_name)
+
+    #     new_name = re.sub(r'\b' + re.escape(old_word) + r'\b', new_word, name_without_digits)
+
+    for frontport in frontports:
+        _pp_port_update(logger, frontport, old, new, revert_if_failed)
+
+    old = re.sub(r'\d+$', '', old_rearport_name)
+    new = re.sub(r'\d+$', '', new_rearport_name)
+    for rearport in rearports:
+        _pp_port_update(logger, rearport, old, new, revert_if_failed)
+
+    return pp
+
+
 def save_cables(logger: Script, cables: list, allow_cable_skip: bool = False):
     """
     Save cables and handle any errors.
@@ -189,6 +258,7 @@ def save_cables(logger: Script, cables: list, allow_cable_skip: bool = False):
                 error += f"\tType: {type(e)}"
                 handle_errors(logger.log_failure, error, allow_cable_skip)
 
+
 def validate_circuit(circuit: Circuit) -> bool:
     """
     Validate a circuit.
@@ -196,6 +266,7 @@ def validate_circuit(circuit: Circuit) -> bool:
     b = MyCircuitValidator()
     failed = b.validate(circuit=circuit, manual=True)
     return failed
+
 
 def save_circuit(circuit: Circuit, logger: Script, allow_cable_skip: bool = False):
     """
@@ -218,6 +289,7 @@ def save_circuit(circuit: Circuit, logger: Script, allow_cable_skip: bool = Fals
 
     return None
 
+
 def check_circuit_duplicate(cid: str, provider: Provider) -> bool:
     """
     Check for duplicate circuits.
@@ -226,7 +298,8 @@ def check_circuit_duplicate(cid: str, provider: Provider) -> bool:
     if circ.count() == 0:  # Normal creation, no duplicate
         return False
     else:
-        return True # Duplicate found
+        return True  # Duplicate found
+
 
 def save_terminations(logger: Script, termination: list):
     """

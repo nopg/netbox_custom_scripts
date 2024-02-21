@@ -13,7 +13,7 @@ from utilities.testing.base import TestCase
 
 # from extras.choices import LogLevelChoices
 from extras.scripts import Script
-from scripts.circuit_adder import BulkCircuits, StandardCircuit
+from scripts.nice_circuit_scripts import BulkCircuits, StandardCircuit
 import os
 from local.utils import *
 from local.nice import NiceBulkCircuits, NiceCircuit, NiceStandardCircuit
@@ -302,7 +302,7 @@ class CircuitAdderTestCase(TestCase):
         csv_test_filename_fail = "local/tests/test_bulk_circuits_fail.csv"
         circuits = NiceBulkCircuits.from_csv(logger=StandardCircuit(), filename=csv_test_filename_fail, circuit_num=4)
         with self.assertLogs(
-            "netbox.scripts.scripts.circuit_adder.StandardCircuit", level="ERROR"
+            "netbox.scripts.scripts.nice_circuit_scripts.StandardCircuit", level="ERROR"
         ) as logs: 
             _ = circuits[0].create()
 
@@ -319,7 +319,7 @@ class CircuitAdderTestCase(TestCase):
         csv_test_filename_fail = "local/tests/test_bulk_circuits_fail.csv"
         circuits = NiceBulkCircuits.from_csv(logger=StandardCircuit(), filename=csv_test_filename_fail, circuit_num=6)
         with self.assertLogs(
-            "netbox.scripts.scripts.circuit_adder.StandardCircuit", level="ERROR"
+            "netbox.scripts.scripts.nice_circuit_scripts.StandardCircuit", level="ERROR"
         ) as logs:
             _ = circuits[0].create()
 
@@ -329,7 +329,7 @@ class CircuitAdderTestCase(TestCase):
         csv_test_filename_fail = "local/tests/test_bulk_circuits_fail.csv"
         circuits = NiceBulkCircuits.from_csv(logger=StandardCircuit(), filename=csv_test_filename_fail, circuit_num=7)
         with self.assertLogs(
-            "netbox.scripts.scripts.circuit_adder.StandardCircuit", level="WARNING"
+            "netbox.scripts.scripts.nice_circuit_scripts.StandardCircuit", level="WARNING"
         ) as logs:
             _ = circuits[0].create()
 
@@ -347,7 +347,7 @@ class CircuitAdderTestCase(TestCase):
         csv_test_filename_fail = "local/tests/test_bulk_circuits_fail.csv"
         circuits = NiceBulkCircuits.from_csv(logger=StandardCircuit(), filename=csv_test_filename_fail, circuit_num=8)
         with self.assertLogs(
-            "netbox.scripts.scripts.circuit_adder.StandardCircuit", level="ERROR"
+            "netbox.scripts.scripts.nice_circuit_scripts.StandardCircuit", level="ERROR"
         ) as logs:
             _ = circuits[0].create()
 
@@ -358,7 +358,7 @@ class CircuitAdderTestCase(TestCase):
         csv_test_filename = "local/tests/test_bulk_circuits.csv"
         circuits = NiceBulkCircuits.from_csv(logger=StandardCircuit(), overwrite=False, filename=csv_test_filename, circuit_num=1)
         with self.assertLogs(
-            "netbox.scripts.scripts.circuit_adder.StandardCircuit", level="INFO"
+            "netbox.scripts.scripts.nice_circuit_scripts.StandardCircuit", level="INFO"
         ) as logs:  # LogLevelChoices.LOG_SUCCESS
             _ = circuits[0].create()
 
@@ -385,7 +385,7 @@ class CircuitAdderTestCase(TestCase):
         circuits = NiceBulkCircuits.from_csv(logger=StandardCircuit(), overwrite=False, filename=csv_test_filename, circuit_num=3)
 
         with self.assertLogs(
-            "netbox.scripts.scripts.circuit_adder.StandardCircuit", level="INFO"
+            "netbox.scripts.scripts.nice_circuit_scripts.StandardCircuit", level="INFO"
         ) as logs:  # LogLevelChoices.LOG_SUCCESS
             _ = circuits[0].create()
 
@@ -404,7 +404,7 @@ class CircuitAdderTestCase(TestCase):
         csv_test_filename = "local/tests/test_bulk_circuits.csv"
         circuits = NiceBulkCircuits.from_csv(logger=StandardCircuit(), overwrite=False, filename=csv_test_filename, circuit_num=5)
         with self.assertLogs(
-            "netbox.scripts.scripts.circuit_adder.StandardCircuit", level="INFO"
+            "netbox.scripts.scripts.nice_circuit_scripts.StandardCircuit", level="INFO"
         ) as logs:  # LogLevelChoices.LOG_SUCCESS
             _ = circuits[0].create()
 
@@ -441,7 +441,7 @@ class CircuitAdderTestCase(TestCase):
         circuits = NiceBulkCircuits.from_csv(logger=StandardCircuit(), overwrite=False, filename=csv_test_filename, circuit_num=6)
 
         with self.assertLogs(
-            "netbox.scripts.scripts.circuit_adder.StandardCircuit", level="INFO"
+            "netbox.scripts.scripts.nice_circuit_scripts.StandardCircuit", level="INFO"
         ) as logs:  # LogLevelChoices.LOG_SUCCESS
             _ = circuits[0].create()
 
@@ -465,7 +465,7 @@ class CircuitAdderTestCase(TestCase):
         csv_test_filename = "local/tests/test_bulk_circuits.csv"
         circuits = NiceBulkCircuits.from_csv(logger=StandardCircuit(), overwrite=True, filename=csv_test_filename, circuit_num=2)
         with self.assertLogs(
-            "netbox.scripts.scripts.circuit_adder.StandardCircuit", level="INFO"
+            "netbox.scripts.scripts.nice_circuit_scripts.StandardCircuit", level="INFO"
         ) as logs:  # LogLevelChoices.LOG_SUCCESS
             _ = circuits[0].create()
 

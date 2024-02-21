@@ -1,7 +1,7 @@
 pull:
-	scp nicnb:/opt/netbox/netbox/scripts/circuit_adder.py ./scripts/
-	scp nicnb:/opt/netbox/netbox/reports/report_circuit_validations.py ./reports/
-	scp nicnb:/opt/netbox/netbox/local/tests/test_circuit_adder.py ./local/tests/
+	scp nicnb:/opt/netbox/netbox/scripts/nice_circuit_scripts.py ./scripts/
+	scp nicnb:/opt/netbox/netbox/reports/nice_reports.py ./reports/
+	scp nicnb:/opt/netbox/netbox/local/tests/test_nice_circuit_scripts.py ./local/tests/
 	scp nicnb:/opt/netbox/netbox/local/utils.py ./local/
 	scp nicnb:/opt/netbox/netbox/local/nice.py ./local/
 	scp nicnb:/opt/netbox/netbox/local/validators.py ./local/

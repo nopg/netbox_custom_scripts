@@ -20,7 +20,6 @@ class NiceCircuit:
     provider: Provider
     circuit_type: CircuitType
     side_a_site: Site
-    side_z_providernetwork: ProviderNetwork
     description: str
     install_date: str
     termination_date: str
@@ -46,12 +45,15 @@ class NiceCircuit:
 
     from_csv: bool = False
     side_a_providernetwork: ProviderNetwork = None
+    side_z_providernetwork: ProviderNetwork = None
     side_z_site: Site = None
     z_pp: Device = None
     z_pp_port: RearPort = None
     z_device: Device = None
     z_interface: Interface = None
     overwrite: bool = False
+    create_pp_port: bool = False
+    create_z_pp_port: bool = False
 
     def __post_init__(self):
         if self.from_csv:
@@ -70,18 +72,13 @@ class NiceCircuit:
             "review": self.review,
         }
 
-    def _fix_bools(self, value) -> None:
-        if isinstance(value, bool):
-            return value
-        return value.lower() == "true"
-
     def _prepare_circuit_from_csv(self) -> None:
         """
         Used to prepare netbox objects, if loaded from a CSV originally
         """
         for field in ["cable_direct_to_device", "allow_cable_skip", "review", "overwrite"]:
             value = getattr(self, field)
-            setattr(self, field, self._fix_bools(value))
+            setattr(self, field, utils.fix_bools(value))
 
         self.provider = utils.get_provider_by_name(self.provider)
         self.circuit_type = utils.get_circuit_type_by_name(name=self.circuit_type)
@@ -387,9 +384,10 @@ class NiceBulkCircuits(NiceCircuit):
             # Set initial values
             row["logger"] = logger
             row["from_csv"] = True
-            if not row["overwrite"]:
-                if overwrite:
-                    row["overwrite"] = "True"
+            if overwrite:
+                row["overwrite"] = overwrite
+            elif row["overwrite"]:
+                row["overwrite"] = utils.fix_bools(row["overwrite"])
             if row.get("nice_script_type") == "Standard Circuit":
                 del row["nice_script_type"]
                 try:
