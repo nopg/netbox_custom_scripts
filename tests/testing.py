@@ -151,7 +151,7 @@ def my_test_bulk(logger):
 	filename = "local/tests/testing-gui_single_circuit.csv"
 	#filename = "local/tests/test_bulk_circuits_malformed.csv"
 	
-	circuits = NiceBulkCircuits.from_csv(logger=logger, filename=filename)#, circuit_num=3)
+	circuits = NiceBulkCircuits.from_csv(logger=logger, filename=filename, circuit_num=1)
 
 	# from rich.pretty import pprint
 	# pprint(circuits)
@@ -160,16 +160,17 @@ def my_test_bulk(logger):
 		circuit.create()
 
 def my_p2p_tests(logger):
-	filename = "local/tests/gui_bulk_circuits_test.csv"
-	circuits = NiceBulkCircuits.from_csv(logger=logger, filename=filename)#, circuit_num=5)
+	#filename = "local/tests/gui_bulk_circuits_test.csv"
+	filename = "local/tests/testing-gui_single_circuit.csv"
+	circuits = NiceBulkCircuits.from_csv(logger=logger, filename=filename, circuit_num=2)
 
 	from rich.pretty import pprint
 	pprint(circuits)
 
 	for circuit in circuits:
 		if isinstance(circuit, NiceStandardCircuit):
-			#print(f"Standard, yuk: {circuit}")
-			pass
+			print("no sir.")
+			sys.exit()
 		else:
 			circuit.create()
 
@@ -188,6 +189,6 @@ class Test(Script):
 		#term_descrs()
 		#my_test1(self)
 
-		my_test_bulk(logger=self)
-		#my_p2p_tests(self)
+		#my_test_bulk(logger=self)
+		my_p2p_tests(self)
 

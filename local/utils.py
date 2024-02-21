@@ -167,7 +167,6 @@ def save_cables(logger: Script, cables: list, allow_cable_skip: bool = False):
     """
     Save cables and handle any errors.
     """
-    error = False
     for cable in cables:
         if cable:
             try:
@@ -181,24 +180,14 @@ def save_cables(logger: Script, cables: list, allow_cable_skip: bool = False):
                         error += f"\tDuplicate Cable found, unable to create Cable: {cable}\n"
                     else:
                         error += f"\tValidation Error saving Cable: {e.messages}\n"
-                
-                if not allow_cable_skip:
-                    raise AbortScript(error)
-                else:
-                    logger.log_failure(error)
+                handle_errors(logger, error, allow_cable_skip)
             except AttributeError as e:
                 error = f"\tUnknown error saving Cable: {e}"
-                logger.log_failure(f"{type(logger)}")
-                logger.log_failure(f"{logger.full_name}")
-                logger.log_failure(f"{dir(logger)}")
-                logger.log_info(f"WHAT IS THIS: {e}")
-                return error
+                handle_errors(logger, error, allow_cable_skip)
             except Exception as e:
-                logger.log_failure(f"\tUnknown error saving Cable: {e}")
-                logger.log_failure(f"\tType: {type(e)}")
-                return e
-        if error:
-            return error
+                error = f"\tUnknown error saving Cable: {e}"
+                error += f"\tType: {type(e)}"
+                handle_errors(logger, error, allow_cable_skip)
 
 def validate_circuit(circuit: Circuit) -> bool:
     """
@@ -224,7 +213,7 @@ def save_circuit(circuit: Circuit, logger: Script, allow_cable_skip: bool = Fals
             lmessages = [msg for msg in e.messages]
             messages = "\n".join(lmessages)
             error = f"\tUnable to save circuit: {circuit.cid} - Failed Netbox validation: {messages}"
-            raise AbortScript(error)
+            handle_errors(logger, error, allow_cable_skip)
 
     return None
 
