@@ -32,7 +32,7 @@ class StandardCircuit(Script):
             ),
             (
                 "Cables",
-                ("pp", "pp_port", "pp_new_port", "device", "interface", "cable_direct_to_device", "create_pp_port"),
+                ("pp", "pp_port", "pp_new_port", "pp_info", "xconnect_id","device", "interface", "direct_to_device", "create_pp_port"),
             ),
             (
                 "Other",
@@ -41,14 +41,11 @@ class StandardCircuit(Script):
                     "upstream_speed",
                     "cir",
                     "install_date",
-                    "termination_date",
-                    "xconnect_id",
-                    "pp_info",
                     "review",
                     "comments",
                 ),
             ),
-            ("Advanced Options", ("overwrite",)),
+            # ("Advanced Options", ("overwrite",)),
         )
 
     # Display Fields
@@ -72,12 +69,12 @@ class StandardCircuit(Script):
     )
     side_a_site = ObjectVar(
         model=Site,
-        label="Side A (NICE)",
+        label="NICE Side A",
         required=True,
     )
     side_z_providernetwork = ObjectVar(
         model=ProviderNetwork,
-        label="Side Z (Carrier)",
+        label="NICE Side Z",
         required=True,
     )
     pp = ObjectVar(model=Device, label="Patch Panel", required=False, query_params={"site_id": "$side_a_site"})
@@ -86,7 +83,14 @@ class StandardCircuit(Script):
         label="CREATE Patch Panel Port #:",
         required=False,
     )
-
+    pp_info = StringVar(
+        label="Extra Patch Panel Info",
+        required=False,
+    )
+    xconnect_id = StringVar(
+        label="Cross Connect ID/Info",
+        required=False,
+    )
     device = ObjectVar(model=Device, label="Device", required=False, query_params={"site_id": "$side_a_site"})
     interface = ObjectVar(
         model=Interface,
@@ -94,16 +98,17 @@ class StandardCircuit(Script):
         required=False,
         query_params={"device_id": "$device"},
     )
-    cable_direct_to_device = BooleanVar(
+    create_pp_port = BooleanVar(
+        label="Create Patch Panel Interface?",
+        description="Will be 'Front# and Rear#",
+        default=False,
+    )
+    direct_to_device = BooleanVar(
         label="Cable Direct To Device?",
         description="Check this box ONLY if the Circuit does not flow through a Patch Panel",
         default=False,
     )
-    create_pp_port = BooleanVar(
-        label="Create Patch Panel Interface?",
-        description="Will be 'Front# and Back#",
-        default=False,
-    )
+
     port_speed = IntegerVar(
         label="Port Speed (Kbps)",
         min_value=0,
@@ -129,20 +134,6 @@ class StandardCircuit(Script):
         regex=YYYY_MM_DD,
         default="2021-02-01",
         required=True,
-    )
-    termination_date = StringVar(
-        label="Termination Date (YYYY-MM-DD)",
-        regex=YYYY_MM_DD,
-        default="2021-02-01",
-        required=True,
-    )
-    xconnect_id = StringVar(
-        label="Cross Connect ID/Info",
-        required=False,
-    )
-    pp_info = StringVar(
-        label="Extra Patch Panel Info",
-        required=False,
     )
     review = BooleanVar(description="Extra Review Needed?", default=False)
     overwrite = BooleanVar(
@@ -172,7 +163,7 @@ class P2PCircuit(Script):
         fieldsets = (
             (
                 "Enter Circuit Information",
-                ("provider", "circuit_type", "cid", "description"),
+                ("cid", "description", "provider", "circuit_type"),
             ),
             (
                 "Side A (NICE Side)",
@@ -182,13 +173,20 @@ class P2PCircuit(Script):
                 "Side Z (Carrier Side)",
                 ("side_z_site",),
             ),
-            ("Cables Side A", ("pp", "pp_port", "pp_new_port", "device", "interface")),
-            ("Cables Side Z", ("z_pp", "z_pp_port", "z_pp_new_port", "z_device", "z_interface")),
+            ("Cables Side A", ("pp", "pp_port", "pp_new_port", "pp_info", "xconnect_id","device", "interface", "direct_to_device", "create_pp_port")),
+            ("Cables Side Z", ("z_pp", "z_pp_port", "z_pp_new_port", "z_pp_info", "xconnect_id","z_device", "z_interface", "z_direct_to_device", "z_create_z_pp_port")),
             (
                 "Other",
-                ("cir", "install_date", "termination_date", "comments", "cable_direct_to_device", "xconnect_id"),
+                (
+                    "port_speed",
+                    "upstream_speed",
+                    "cir",
+                    "install_date",
+                    "review",
+                    "comments",
+                ),
             ),
-            ("Advanced Options", ("overwrite", "create_pp_port", "create_z_pp_port")),
+            # ("Advanced Options", ("overwrite",)),
         )
 
     # Display Fields
@@ -209,6 +207,16 @@ class P2PCircuit(Script):
     )
     description = StringVar(
         label="Circuit Description",
+        required=False,
+    )
+    port_speed = IntegerVar(
+        label="Port Speed (Kbps)",
+        min_value=0,
+        required=False,
+    )
+    upstream_speed = IntegerVar(
+        label="Upload Speed (Kbps)",
+        min_value=0,
         required=False,
     )
     cir = IntegerVar(
@@ -233,13 +241,25 @@ class P2PCircuit(Script):
         description="Will be 'Front# and Back#",
         required=False,
     )
-
+    pp_info = StringVar(
+        label="Extra Patch Panel Info",
+        required=False,
+    )
+    xconnect_id = StringVar(
+        label="Cross Connect ID/Info",
+        required=False,
+    )
     device = ObjectVar(model=Device, label="Device", required=False, query_params={"site_id": "$side_a_site"})
     interface = ObjectVar(
         model=Interface,
         label="Interface",
         required=False,
         query_params={"device_id": "$device"},
+    )
+    direct_to_device = BooleanVar(
+        label="Cable Direct To Device?",
+        description="Check this box ONLY if the Circuit does not flow through a Patch Panel",
+        default=False,
     )
 
     z_pp = ObjectVar(model=Device, label="Patch Panel Side Z", required=False, query_params={"site_id": "$side_z_site"})
@@ -251,12 +271,25 @@ class P2PCircuit(Script):
         description="Will be 'Front# and Back#",
         required=False,
     )
+    z_pp_info = StringVar(
+        label="Extra Patch Panel Info",
+        required=False,
+    )
+    z_xconnect_id = StringVar(
+        label="Cross Connect ID/Info",
+        required=False,
+    )
     z_device = ObjectVar(model=Device, label="Device Side Z", required=False, query_params={"site_id": "$side_z_site"})
     z_interface = ObjectVar(
         model=Interface,
         label="Interface Side Z",
         required=False,
         query_params={"device_id": "$device_z"},
+    )
+    z_direct_to_device = BooleanVar(
+        label="Cable Direct To Device?",
+        description="Check this box ONLY if the Circuit does not flow through a Patch Panel",
+        default=False,
     )
 
     comments = TextVar(
@@ -268,20 +301,8 @@ class P2PCircuit(Script):
         description="Don't know? Use 2021-02-01",
         required=True,
     )
-    termination_date = StringVar(
-        label="Termination Date (YYYY-MM-DD)",
-        required=True,
-    )
-    xconnect_id = StringVar(
-        label="Cross Connect ID/Info",
-        required=False,
-    )
     overwrite = BooleanVar(
-        description="Overwrite existing circuits? (same Ciruit ID & Provider == Same Circuit)", default=False,
-    )
-    cable_direct_to_device = BooleanVar(
-        label="Cable Direct To Device?",
-        description="Check this box ONLY if the Circuit does not flow through a Patch Panel",
+        description="Overwrite existing circuits? (same Ciruit ID & Provider == Same Circuit)",
         default=False,
     )
     create_pp_port = BooleanVar(
@@ -365,7 +386,7 @@ class UpdatePatchPanelPorts(Script):
             ("Patch Panel", ("site", "pp", "pp_frontport", "pp_rearport")),
             ("Front Ports", ("old_frontport_name", "new_frontport_name")),
             ("Rear Ports", ("old_rearport_name", "new_rearport_name")),
-            ("Other", ("revert_if_failed",))
+            ("Other", ("revert_if_failed",)),
         )
 
     site = ObjectVar(
@@ -405,9 +426,7 @@ class UpdatePatchPanelPorts(Script):
         label="New RearPort Name",
         required=True,
     )
-    revert_if_failed = BooleanVar(
-        label="Revert changes if any renames fail?", default=True, required=False
-    )
+    revert_if_failed = BooleanVar(label="Revert changes if any renames fail?", default=True, required=False)
 
     def run(self, data, commit):
         del data["pp_frontport"]

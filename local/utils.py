@@ -1,6 +1,5 @@
 import csv
 import codecs
-import datetime
 import dateutil.parser as date_parser
 from dateutil.parser import ParserError
 
@@ -36,21 +35,22 @@ HEADER_MAPPING = {
     "Side Z Provider Network": "side_z_providernetwork",
     "Description": "description",
     "Install Date": "install_date",
-    "Termination Date": "termination_date",
     "Commit Rate (Kbps)": "cir",
     "Comments": "comments",
     "Patch Panel Z": "z_pp",
     "PP Port Z": "z_pp_port",
     "Device Z": "z_device",
     "Interface Z": "z_interface",
-    "Cable Direct To Device": "cable_direct_to_device",
+    "Cable Direct To Device": "direct_to_device",
     "Cross Connect": "xconnect_id",
+    "Z Cross Connect": "z_xconnect_id",
     "Cable Type": "cable_type",
-    "Allow Cable Skip": "allow_cable_skip",
+    "Allow Skip": "allow_skip",
     "Review": "review",
     "Overwrite": "overwrite",
     "Create PP Port": "create_pp_port",
     "Create PP Z Port": "create_z_pp_port",
+    "Cable Z Direct To Device": "z_direct_to_device",
 }
 
 
@@ -77,7 +77,7 @@ def validate_date(date_str: str) -> str:
     error = f"Invalid date ({date_str}), should be YYYY-MM-DD"
     try:
         date = date_parser.parse(date_str)
-        if not 1980 <= date.year <= 2026:
+        if not 1980 <= date.year <= 2036:
             raise AbortScript(f"Date: {date_str} is outside constraints: Minimum year: 1980, Maximum year: 2026")
     except (ParserError, ValueError, TypeError):
         raise AbortScript(error)
@@ -232,7 +232,7 @@ def pp_port_update(
     return pp
 
 
-def save_cables(logger: Script, cables: list, allow_cable_skip: bool = False):
+def save_cables(logger: Script, cables: list, allow_skip: bool = False):
     """
     Save cables and handle any errors.
     """
@@ -249,14 +249,14 @@ def save_cables(logger: Script, cables: list, allow_cable_skip: bool = False):
                         error += f"\tDuplicate Cable found, unable to create Cable: {cable}\n"
                     else:
                         error += f"\tValidation Error saving Cable: {e.messages}\n"
-                handle_errors(logger.log_failure, error, allow_cable_skip)
+                handle_errors(logger.log_failure, error, allow_skip)
             except AttributeError as e:
                 error = f"\tUnknown error saving Cable: {e}"
-                handle_errors(logger.log_failure, error, allow_cable_skip)
+                handle_errors(logger.log_failure, error, allow_skip)
             except Exception as e:
                 error = f"\tUnknown error saving Cable: {e}"
                 error += f"\tType: {type(e)}"
-                handle_errors(logger.log_failure, error, allow_cable_skip)
+                handle_errors(logger.log_failure, error, allow_skip)
 
 
 def validate_circuit(circuit: Circuit) -> bool:
@@ -268,14 +268,14 @@ def validate_circuit(circuit: Circuit) -> bool:
     return failed
 
 
-def save_circuit(circuit: Circuit, logger: Script, allow_cable_skip: bool = False):
+def save_circuit(circuit: Circuit, logger: Script, allow_skip: bool = False):
     """
     Save a circuit and handle any errors.
     """
     error = validate_circuit(circuit)
     if error:
         error += f"Failed custom validation: {error}"
-        handle_errors(logger.log_failure, error, allow_cable_skip)
+        handle_errors(logger.log_failure, error, allow_skip)
     else:
         try:
             circuit.full_clean()
@@ -285,7 +285,7 @@ def save_circuit(circuit: Circuit, logger: Script, allow_cable_skip: bool = Fals
             lmessages = [msg for msg in e.messages]
             messages = "\n".join(lmessages)
             error = f"\tUnable to save circuit: {circuit.cid} - Failed Netbox validation: {messages}"
-            handle_errors(logger.log_failure, error, allow_cable_skip)
+            handle_errors(logger.log_failure, error, allow_skip)
 
     return None
 
@@ -308,4 +308,5 @@ def save_terminations(logger: Script, termination: list):
     if isinstance(termination, CircuitTermination):
         termination.full_clean()
         termination.save()
-        logger.log_success(f"\tSaved Termination: {termination}")
+        name = termination.site if termination.site else termination.provider_network
+        logger.log_success(f"\tSaved Termination {termination.term_side}: {name}")

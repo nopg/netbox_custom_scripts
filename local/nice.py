@@ -22,7 +22,6 @@ class NiceCircuit:
     side_a_site: Site
     description: str
     install_date: str
-    termination_date: str
     cir: int
     comments: str
     device: Device
@@ -35,11 +34,12 @@ class NiceCircuit:
 
     pp: Device = None
     pp_port: RearPort = None
+    pp_port_description: str = "" # IMPLEMENT
     pp_new_port: str = ""  # IMPLEMENT
     create_pp_port: bool = False  # IMPLEMENT
 
-    cable_direct_to_device: bool = False
-    allow_cable_skip: bool = False
+    direct_to_device: bool = False
+    allow_skip: bool = False
     overwrite: bool = False
     review: bool = False
 
@@ -49,11 +49,14 @@ class NiceCircuit:
     side_z_site: Site = None
     z_pp: Device = None
     z_pp_port: RearPort = None
+    pp_port_description: str = "" # IMPLEMENT
+    z_xconnect_id: str = "" # IMPLEMENT
     z_device: Device = None
     z_interface: Interface = None
+    z_direct_to_device: bool = False # IMPLEMENT
     overwrite: bool = False
     create_pp_port: bool = False
-    create_z_pp_port: bool = False
+    create_z_pp_port: bool = False # IMPLEMENT
 
     def __post_init__(self):
         if self.from_csv:
@@ -76,7 +79,7 @@ class NiceCircuit:
         """
         Used to prepare netbox objects, if loaded from a CSV originally
         """
-        for field in ["cable_direct_to_device", "allow_cable_skip", "review", "overwrite"]:
+        for field in ["direct_to_device", "z_direct_to_device" , "allow_skip", "review", "overwrite"]:
             value = getattr(self, field)
             setattr(self, field, utils.fix_bools(value))
 
@@ -91,7 +94,6 @@ class NiceCircuit:
         self.pp = utils.get_device_by_name(name=self.pp, site=self.side_a_site)
         self.pp_port = utils.get_rearport_by_name(name=self.pp_port, device=self.pp)
         self.install_date = utils.validate_date(self.install_date)
-        self.termination_date = utils.validate_date(self.termination_date)
 
         # P2P
         self.z_device = utils.get_device_by_name(name=self.z_device, site=self.side_z_site)
@@ -143,13 +145,13 @@ class NiceCircuit:
 
             if not isinstance(termination_x, CircuitTermination):
                 error = termination_x
-                utils.handle_errors(self.logger.log_warning, error, self.allow_cable_skip)
+                utils.handle_errors(self.logger.log_warning, error, self.allow_skip)
                 return None
 
             utils.save_terminations(logger=self.logger, termination=termination_x)
         else:
             error = f"CID '{self.cid}': Missing Site for Termination {side}"
-            utils.handle_errors(self.logger.log_warning, error, self.allow_cable_skip)
+            utils.handle_errors(self.logger.log_warning, error, self.allow_skip)
             return None
 
         return termination_x
@@ -187,12 +189,12 @@ class NiceCircuit:
 
             if not isinstance(termination_x, CircuitTermination):
                 error = termination_x
-                utils.handle_errors(self.logger.log_failure, error, self.allow_cable_skip)
+                utils.handle_errors(self.logger.log_failure, error, self.allow_skip)
                 return None
             utils.save_terminations(logger=self.logger, termination=termination_x)
         else:
             error = f"CID '{self.cid}': Missing Provider Network for Termination {side.upper()}"
-            utils.handle_errors(self.logger.log_failure, error, self.allow_cable_skip)
+            utils.handle_errors(self.logger.log_failure, error, self.allow_skip)
             return None
 
         return termination_x
@@ -206,7 +208,6 @@ class NiceCircuit:
             description=self.description,
             commit_rate=self.cir,
             install_date=self.install_date,
-            termination_date=self.termination_date,
             custom_field_data=self.custom_fields,
         )
 
@@ -216,7 +217,6 @@ class NiceCircuit:
         circuit.description = self.description
         circuit.commit_rate = self.cir
         circuit.install_date = self.install_date
-        circuit.termination_date = self.termination_date
         circuit.custom_field_data = self.custom_fields
         return circuit
 
@@ -239,13 +239,13 @@ class NiceCircuit:
         error = False
         if device is None or interface is None:
             error = f"\tCID '{self.cid}': Error: Missing Device and/or Interface."
-        elif self.cable_direct_to_device and (pp or pp_port):
+        elif self.direct_to_device and (pp or pp_port):
             error = f"\tCID '{self.cid}': Error: Cable Direct to Device chosen, but Patch Panel also Selected."
-        elif not self.cable_direct_to_device and (pp is None or pp_port is None):
+        elif not self.direct_to_device and (pp is None or pp_port is None):
             error = f"\tCID '{self.cid}': Error: Patch Panel (or port) missing, and 'Cable Direct to Device' is not checked."
 
         if error:
-            utils.handle_errors(self.logger.log_failure, error, self.allow_cable_skip)
+            utils.handle_errors(self.logger.log_failure, error, self.allow_skip)
             valid = False
         
         return valid
@@ -255,7 +255,7 @@ class NiceCircuit:
     ) -> Cable:
         if not device or not interface:
             error = f"CID '{self.cid}': Unable to create cable to the device for circuit: {self.cid}"
-            utils.handle_errors(self.logger.log_failure, error, self.allow_cable_skip)
+            utils.handle_errors(self.logger.log_failure, error, self.allow_skip)
             return
 
         label = f"{self.cid}: {device}/{interface} <-> {a_side_label}"
@@ -264,18 +264,18 @@ class NiceCircuit:
             a_terminations=[a_side], b_terminations=[interface], type=CableTypeChoices.TYPE_SMF_OS2, label=label
         )
 
-    def _build_pp_x_cable(self, pp: Device, pp_port: RearPort, a_side: CircuitTermination | Interface):
+    def _build_pp_x_cable(self, pp: Device, pp_port: RearPort, a_side: CircuitTermination):
         """
         Build Patch Panel Cable
         """
-        if self.cable_direct_to_device:
+        if self.direct_to_device:
             return None
 
         if not pp or not pp_port:
             error = f"CID '{self.cid}': Unable to create cable to Patch Panel for circuit: {self.cid}"
-            utils.handle_errors(self.logger.log_failure, error, self.allow_cable_skip)
+            utils.handle_errors(self.logger.log_failure, error, self.allow_skip)
 
-        label = f"{self.cid}: {pp}/{pp_port} <-> {a_side}"
+        label = f"{self.cid}: {pp}/{pp_port} <-> {a_side.site}"
 
         return Cable(
             a_terminations=[a_side],
@@ -291,7 +291,7 @@ class NiceCircuit:
 
         pp_cable = self._build_pp_x_cable(pp, pp_port, a_side=termination)  # CREATE A VAR?!
 
-        if self.cable_direct_to_device:
+        if self.direct_to_device:
             device_side_a = termination
             label = f"{termination}"
         else:
@@ -301,7 +301,7 @@ class NiceCircuit:
         device_cable = self._build_device_x_cable(device, interface, a_side=device_side_a, a_side_label=label)
 
         utils.save_cables(
-            logger=self.logger, allow_cable_skip=self.allow_cable_skip, cables=[pp_cable, device_cable]
+            logger=self.logger, allow_skip=self.allow_skip, cables=[pp_cable, device_cable]
         )
 
     def create_circuit(self) -> Circuit:
@@ -322,13 +322,13 @@ class NiceCircuit:
 
             circuit = self._update_circuit(circuit)
         else:
-            error = f"CID '{self.cid}': Error, existing Circuit found and overwrites are disabled"
+            error = f"CID '{self.cid}': Error, existing Circuit found!"
             circuit = None
-            utils.handle_errors(self.logger.log_failure, error, self.allow_cable_skip)
+            utils.handle_errors(self.logger.log_failure, error, self.allow_skip)
             return None
 
         if circuit:
-            utils.save_circuit(circuit, self.logger, allow_cable_skip=self.allow_cable_skip)
+            utils.save_circuit(circuit, self.logger, allow_skip=self.allow_skip)
 
         return circuit
 

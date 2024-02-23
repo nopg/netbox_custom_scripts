@@ -209,6 +209,6 @@ class Test(Script):
 		#my_test1(self)
 
 		#my_test_bulk(logger=self)
-		#my_p2p_tests(self)
-		my_pp_updater_tests(self)
+		my_p2p_tests(self)
+		#my_pp_updater_tests(self)
 

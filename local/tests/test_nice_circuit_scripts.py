@@ -306,7 +306,7 @@ class CircuitAdderTestCase(TestCase):
         ) as logs: 
             _ = circuits[0].create()
 
-        self.assertIn("overwrites are disabled", logs.output[0])
+        self.assertIn("existing Circuit found!", logs.output[0])
 
     def test_bulk_circuit_3_missing_device(self):
         csv_test_filename_fail = "local/tests/test_bulk_circuits_fail.csv"
@@ -364,7 +364,7 @@ class CircuitAdderTestCase(TestCase):
 
         # Correct Logs
         self.assertTrue(any("Saved Circuit:" in  log for log in logs.output))
-        term_count = sum(log.count("Saved Termination:") for log in logs.output)
+        term_count = sum(log.count("Saved Termination") for log in logs.output)
         cable_count = sum(log.count("Saved Cable:") for log in logs.output)
         self.assertEqual(term_count, 2)
         self.assertEqual(cable_count, 1)
@@ -391,7 +391,7 @@ class CircuitAdderTestCase(TestCase):
 
         # Correct Logs
         self.assertTrue(any("Saved Circuit:" in  log for log in logs.output))
-        term_count = sum(log.count("Saved Termination:") for log in logs.output)
+        term_count = sum(log.count("Saved Termination") for log in logs.output)
         cable_count = sum(log.count("Saved Cable:") for log in logs.output)
         self.assertEqual(term_count, 2)
         self.assertEqual(cable_count, 2)
@@ -410,10 +410,12 @@ class CircuitAdderTestCase(TestCase):
 
         # Correct Logs
         self.assertTrue(any("Saved Circuit:" in  log for log in logs.output))
-        term_count = sum(log.count("Saved Termination:") for log in logs.output)
+        term_count = sum(log.count("Saved Termination") for log in logs.output)
+        term_a_count = sum(log.count("Termination Z") for log in logs.output)
         term_z_count = sum(log.count("Termination Z") for log in logs.output)
         cable_count = sum(log.count("Saved Cable:") for log in logs.output)
         self.assertEqual(term_count, 2)
+        self.assertEqual(term_a_count, 2)
         self.assertEqual(term_z_count, 2)
         self.assertEqual(cable_count, 2)
         # No warnings
@@ -447,13 +449,13 @@ class CircuitAdderTestCase(TestCase):
 
         # Correct Logs
         self.assertTrue(any("Saved Circuit:" in  log for log in logs.output))
-        term_count = sum(log.count("Saved Termination:") for log in logs.output)
+        term_count = sum(log.count("Saved Termination") for log in logs.output)
         term_a_count = sum(log.count("Termination A") for log in logs.output)
         term_z_count = sum(log.count("Termination Z") for log in logs.output)
         cable_count = sum(log.count("Saved Cable:") for log in logs.output)
         self.assertEqual(term_count, 2)
-        self.assertEqual(term_a_count, 2)
-        self.assertEqual(term_z_count, 2)
+        self.assertEqual(term_a_count, 1)
+        self.assertEqual(term_z_count, 1)
         self.assertEqual(cable_count, 4)
         # No warnings
         self.assertFalse(any("WARNING" in log for log in logs.output))
@@ -472,7 +474,7 @@ class CircuitAdderTestCase(TestCase):
         # Correct Logs
         self.assertTrue(any("updating existing circuit!" in  log for log in logs.output))
         self.assertTrue(any("Saved Circuit:" in  log for log in logs.output))
-        term_count = sum(log.count("Saved Termination:") for log in logs.output)
+        term_count = sum(log.count("Saved Termination") for log in logs.output)
         cable_count = sum(log.count("Saved Cable:") for log in logs.output)
         self.assertEqual(term_count, 2)
         self.assertEqual(cable_count, 1)
