@@ -51,7 +51,7 @@ class NiceCircuit:
     z_device: Device
     z_interface: Interface
     z_direct_to_device: bool
-    create_z_pp_port: bool  # IMPLEMENT
+    z_create_pp_port: bool  # IMPLEMENT
     # Misc
     allow_skip: bool = False
     overwrite: bool = False
@@ -95,18 +95,61 @@ class NiceCircuit:
         self.z_pp = utils.get_device_by_name(name=self.z_pp, site=self.side_z_site)
         self.z_pp_port = utils.get_rearport_by_name(name=self.z_pp_port, device=self.z_pp)
 
-    def _validate_data(self) -> None:
-        error = False
+    def create_new_pp_port(pp: Device, port_num: int) -> None:
+        ...
+
+    def _validate_mandatory_values(self) -> None:
         if not all([self.cid, self.provider, self.circuit_type]):
             error = (
                 f"Missing/Not Found Mandatory Value for either: Circuit ID ({self.cid}), "
                 f"Provider ({self.provider}), or Circuit Type ({self.circuit_type})"
             )
             raise AbortScript(error)
-        
+
+    def _validate_sites(self) -> None:
         if self.side_a_site == self.side_z_site:
             error = (f"Cannot terminate {self.side_a_site} to {self.side_z_site}")
             raise AbortScript(error)
+    
+    def _init_patch_panel_properties(self) -> None:
+        if self.pp_new_port and not self.create_pp_port:
+            raise AbortScript(f"Cannot create new Patch Panel Port #: {self.pp_new_port} unless \"Create Patch Panel Interface\" is selected.")
+        elif self.z_pp_new_port and not self.z_create_pp_port:
+            raise AbortScript(f"Cannot create new Patch Panel Port #: {self.pp_new_port} unless \"Create Patch Panel Interface\" is selected.")
+        elif self.pp_port and self.create_pp_port:
+            raise AbortScript(f"Cannot choose an existing Patch Panel Port ({self.pp_port} AND enable 'Create Patch Panel Port' simultaneously.")
+        elif self.z_pp_port and self.z_create_pp_port:
+            raise AbortScript(f"Cannot choose an existing Patch Panel Port ({self.z_pp_port} AND enable 'Create Patch Panel Port' simultaneously.")
+        
+        # if self.device is None or self.interface is None:
+        #     raise AbortScript(f"\tCID '{self.cid}': Error: Missing Device and/or Interface.")
+        # elif self.direct_to_device and (self.pp or self.pp_port):
+        #     raise AbortScript(f"\tCID '{self.cid}': Error: Cable Direct to Device chosen, but Patch Panel also Selected.")
+        # elif not self.direct_to_device and (self.pp is None or self.pp_port is None):
+        #     raise AbortScript(f"\tCID '{self.cid}': Error: Patch Panel (or port) missing, and 'Cable Direct to Device' is not checked.")
+        valid = self._validate_x_cables(self.pp, self.pp_port, self.device, self.interface, self.direct_to_device)
+        if not valid:
+            return
+        if isinstance(self, NiceP2PCircuit):  
+            valid = self._validate_x_cables(self.z_pp, self.z_pp_port, self.z_device, self.z_interface, self.z_direct_to_device)
+            if not valid:
+                return       
+
+        if self.pp_new_port and self.create_pp_port:
+            self.create_new_pp_port(self.pp, self.pp_new_port)
+        if self.z_pp_new_port and self.z_create_pp_port:
+            self.create_new_pp_port(self.pp, self.pp_new_port)
+        
+        if self.pp_port and not self.create_pp_port:
+            return
+        if self.z_pp_port and not self.z_create_pp_port:
+            return
+        
+
+    def _validate_data(self) -> None:
+        self._validate_mandatory_values()
+        self._validate_sites()
+        self._init_patch_panel_properties()
 
     def _build_site_termination(self, side: str, site: Site) -> CircuitTermination:
         xconnect_id = self.xconnect_id if side == "A" else self.z_xconnect_id
@@ -154,7 +197,7 @@ class NiceCircuit:
         return termination_x
 
     def _build_provider_network_termination(self, side: str, provider_network: ProviderNetwork) -> CircuitTermination:
-        termination = None
+        termination: CircuitTermination = None
         existing = self.circuit.terminations.all()
         if len(existing) > 0:
             for term in existing:
@@ -236,11 +279,11 @@ class NiceCircuit:
         valid = True
         error = False
         if device is None or interface is None:
-            error = f"\tCID '{self.cid}': Error: Missing Device and/or Interface."
+            error = f"\tCID '{self.cid}': Error: Missing Device ({device}) and/or Interface {interface}."
         elif direct_to_device and (pp or pp_port):
-            error = f"\tCID '{self.cid}': Error: Cable Direct to Device chosen, but Patch Panel also Selected."
+            error = f"\tCID '{self.cid}': Error: Cable Direct to Device chosen, but Patch Panel ({pp}) was also selected."
         elif not direct_to_device and (pp is None or pp_port is None):
-            error = f"\tCID '{self.cid}': Error: Patch Panel (or port) missing, and 'Cable Direct to Device' is not checked."
+            error = f"\tCID '{self.cid}': Error: Patch Panel or port {pp}/{pp_port} missing, and 'Cable Direct to Device' is not checked."
 
         if error:
             utils.handle_errors(self.logger.log_failure, error, self.allow_skip)
