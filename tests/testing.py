@@ -193,6 +193,21 @@ def	my_pp_updater_tests(logger: Script):
 	# }
 	_ = utils.pp_port_update(logger, **data)
 
+def pp_port_descrs():
+	rps = RearPort.objects.all()
+	afps = FrontPort.objects.all()
+	for rp in rps:
+		if rp.description:
+			print(f"rp: {rp},\trp-descr: {rp.description}")
+			fps = rp.frontports.all()
+			for fp in fps:
+				print(f"myfp::--- {fp.description}")
+	print("\n\n\n")
+	for afp in afps:
+		if afp.description:
+			print(f"FP: {fp},\trp-descr: {fp.description}")
+			print(f"myRp::--- {fp.rear_port.description}")
+
 class Test(Script):
 	class Meta:
 		name = "misc tests"
@@ -206,9 +221,10 @@ class Test(Script):
 		#rear_front_portnames()
 		#pp_info()
 		#term_descrs()
+		pp_port_descrs()
 		#my_test1(self)
 
 		#my_test_bulk(logger=self)
-		my_p2p_tests(self)
+		#my_p2p_tests(self)
 		#my_pp_updater_tests(self)
 

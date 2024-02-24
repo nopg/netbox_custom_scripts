@@ -13,45 +13,13 @@ from dcim.models import Cable, Device, Interface, RearPort, Site
 from utilities.choices import ColorChoices
 from utilities.exceptions import AbortScript
 
+from local.display_fields import HEADER_MAPPING
 from local.validators import MyCircuitValidator
 import re
 
 from django.core.files.uploadedfile import InMemoryUploadedFile
 
 BULK_SCRIPT_ALLOWED_USERS = ["netbox", "danny.berman", "joe.deweese", "loran.fuchs"]
-
-HEADER_MAPPING = {
-    "Circuit ID": "cid",
-    "NICE Script Type": "nice_script_type",
-    "Provider": "provider",
-    "Circuit Type": "circuit_type",
-    "Side A Site": "side_a_site",
-    "Side A Provider Network": "side_a_providernetwork",
-    "Patch Panel": "pp",
-    "PP Port": "pp_port",
-    "Device": "device",
-    "Interface": "interface",
-    "Side Z Site": "side_z_site",
-    "Side Z Provider Network": "side_z_providernetwork",
-    "Description": "description",
-    "Install Date": "install_date",
-    "Commit Rate (Kbps)": "cir",
-    "Comments": "comments",
-    "Patch Panel Z": "z_pp",
-    "PP Port Z": "z_pp_port",
-    "Device Z": "z_device",
-    "Interface Z": "z_interface",
-    "Cable Direct To Device": "direct_to_device",
-    "Cross Connect": "xconnect_id",
-    "Z Cross Connect": "z_xconnect_id",
-    "Cable Type": "cable_type",
-    "Allow Skip": "allow_skip",
-    "Review": "review",
-    "Overwrite": "overwrite",
-    "Create PP Port": "create_pp_port",
-    "Create PP Z Port": "create_z_pp_port",
-    "Cable Z Direct To Device": "z_direct_to_device",
-}
 
 
 def handle_errors(logger: Script, error: str, skip: bool = False):
@@ -294,6 +262,7 @@ def check_circuit_duplicate(cid: str, provider: Provider) -> bool:
     """
     Check for duplicate circuits.
     """
+
     circ = Circuit.objects.filter(cid=cid, provider=provider)
     if circ.count() == 0:  # Normal creation, no duplicate
         return False

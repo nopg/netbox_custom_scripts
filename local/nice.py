@@ -1,4 +1,3 @@
-import csv
 from dataclasses import dataclass
 
 from django.core.files.uploadedfile import InMemoryUploadedFile
@@ -16,58 +15,52 @@ import local.utils as utils
 @dataclass
 class NiceCircuit:
     logger: Script
+    # Circuit
     cid: str
+    description: str
     provider: Provider
     circuit_type: CircuitType
     side_a_site: Site
-    description: str
-    install_date: str
-    cir: int
-    comments: str
+    side_z_site: Site
+    side_z_providernetwork: ProviderNetwork
+    # Cables (Side A)
+    pp: Device
+    pp_port: RearPort
+    pp_new_port: str  # IMPLEMENT
+    pp_port_description: str  # IMPLEMENT
+    pp_info: str
+    xconnect_id: str
     device: Device
     interface: Interface
-    cable_type: str = ""
-    xconnect_id: str = ""
-    port_speed: int = 0
-    upstream_speed: int = 0
-    pp_info: str = ""
-
-    pp: Device = None
-    pp_port: RearPort = None
-    pp_port_description: str = "" # IMPLEMENT
-    pp_new_port: str = ""  # IMPLEMENT
-    create_pp_port: bool = False  # IMPLEMENT
-
-    direct_to_device: bool = False
+    direct_to_device: bool
+    create_pp_port: bool  # IMPLEMENT
+    # Other
+    port_speed: int
+    upstream_speed: int
+    cir: int
+    install_date: str
+    review: bool
+    comments: str
+    # Cables (Side Z)
+    z_pp: Device
+    z_pp_port: RearPort
+    z_pp_port_description: str  # IMPLEMENT
+    z_pp_new_port: bool
+    z_pp_info: str
+    z_xconnect_id: str
+    z_device: Device
+    z_interface: Interface
+    z_direct_to_device: bool
+    create_z_pp_port: bool  # IMPLEMENT
+    # Misc
     allow_skip: bool = False
     overwrite: bool = False
-    review: bool = False
-
     from_csv: bool = False
-    side_a_providernetwork: ProviderNetwork = None
-    side_z_providernetwork: ProviderNetwork = None
-    side_z_site: Site = None
-    z_pp: Device = None
-    z_pp_port: RearPort = None
-    pp_port_description: str = "" # IMPLEMENT
-    z_xconnect_id: str = "" # IMPLEMENT
-    z_device: Device = None
-    z_interface: Interface = None
-    z_direct_to_device: bool = False # IMPLEMENT
-    overwrite: bool = False
-    create_pp_port: bool = False
-    create_z_pp_port: bool = False # IMPLEMENT
 
     def __post_init__(self):
         if self.from_csv:
             self._prepare_circuit_from_csv()
         self._validate_data()
-        if not self.cir:
-            self.cir = 0
-        if not self.port_speed:
-            self.port_speed = 0
-        if not self.upstream_speed:
-            self.upstream_speed = 0
         self._set_custom_fields()
 
     def _set_custom_fields(self):
@@ -79,14 +72,15 @@ class NiceCircuit:
         """
         Used to prepare netbox objects, if loaded from a CSV originally
         """
-        for field in ["direct_to_device", "z_direct_to_device" , "allow_skip", "review", "overwrite"]:
+        for field in ["direct_to_device", "z_direct_to_device", "allow_skip", "review", "overwrite"]:
             value = getattr(self, field)
             setattr(self, field, utils.fix_bools(value))
-
+        self.cir = self.cir or 0
+        self.port_speed = self.port_speed or 0
+        self.upstream_speed = self.upstream_speed or 0
         self.provider = utils.get_provider_by_name(self.provider)
         self.circuit_type = utils.get_circuit_type_by_name(name=self.circuit_type)
         self.side_a_site = utils.get_site_by_name(self.side_a_site)
-        # self.side_a_providernetwork = utils.get_provider_network_by_name(self.side_a_providernetwork) -- never needed?
         self.side_z_site = utils.get_site_by_name(self.side_z_site)  # P2P
         self.side_z_providernetwork = utils.get_provider_network_by_name(self.side_z_providernetwork)
         self.device = utils.get_device_by_name(name=self.device, site=self.side_a_site)
@@ -108,11 +102,14 @@ class NiceCircuit:
                 f"Missing/Not Found Mandatory Value for either: Circuit ID ({self.cid}), "
                 f"Provider ({self.provider}), or Circuit Type ({self.circuit_type})"
             )
-
-        if error:
+            raise AbortScript(error)
+        
+        if self.side_a_site == self.side_z_site:
+            error = (f"Cannot terminate {self.side_a_site} to {self.side_z_site}")
             raise AbortScript(error)
 
     def _build_site_termination(self, side: str, site: Site) -> CircuitTermination:
+        xconnect_id = self.xconnect_id if side == "A" else self.z_xconnect_id
         termination = None
         existing = self.circuit.terminations.all()
         if len(existing) > 0:
@@ -130,7 +127,7 @@ class NiceCircuit:
                 circuit=self.circuit,
                 port_speed=self.port_speed,
                 upstream_speed=self.upstream_speed,
-                xconnect_id=self.xconnect_id,
+                xconnect_id=xconnect_id,
             )
         else:
             termination.port_speed = self.port_speed
@@ -231,23 +228,24 @@ class NiceCircuit:
 
         return rear_port.frontports.first()
 
-    def _validate_x_cables(self, pp: Device, pp_port: RearPort, device: Device, interface: Interface) -> None:
+    def _validate_x_cables(self, pp: Device, pp_port: RearPort, device: Device, interface: Interface, direct_to_device: bool) -> None:
         """
         Validate we have what is necessary to create the cables
         """
+        
         valid = True
         error = False
         if device is None or interface is None:
             error = f"\tCID '{self.cid}': Error: Missing Device and/or Interface."
-        elif self.direct_to_device and (pp or pp_port):
+        elif direct_to_device and (pp or pp_port):
             error = f"\tCID '{self.cid}': Error: Cable Direct to Device chosen, but Patch Panel also Selected."
-        elif not self.direct_to_device and (pp is None or pp_port is None):
+        elif not direct_to_device and (pp is None or pp_port is None):
             error = f"\tCID '{self.cid}': Error: Patch Panel (or port) missing, and 'Cable Direct to Device' is not checked."
 
         if error:
             utils.handle_errors(self.logger.log_failure, error, self.allow_skip)
             valid = False
-        
+
         return valid
 
     def _build_device_x_cable(
@@ -268,8 +266,6 @@ class NiceCircuit:
         """
         Build Patch Panel Cable
         """
-        if self.direct_to_device:
-            return None
 
         if not pp or not pp_port:
             error = f"CID '{self.cid}': Unable to create cable to Patch Panel for circuit: {self.cid}"
@@ -284,25 +280,24 @@ class NiceCircuit:
             label=label,
         )
 
-    def create_standard_cables(self, pp: Device, pp_port: RearPort, device: Device, interface: Interface, termination: CircuitTermination):
-        valid = self._validate_x_cables(pp, pp_port, device, interface)
+    def create_standard_cables(
+        self, pp: Device, pp_port: RearPort, device: Device, interface: Interface, termination: CircuitTermination
+    ):
+        valid = self._validate_x_cables(pp, pp_port, device, interface, self.direct_to_device)
         if not valid:
             return
 
-        pp_cable = self._build_pp_x_cable(pp, pp_port, a_side=termination)  # CREATE A VAR?!
-
         if self.direct_to_device:
+            pp_cable = None
             device_side_a = termination
             label = f"{termination}"
         else:
+            pp_cable = self._build_pp_x_cable(pp, pp_port, a_side=termination)
             device_side_a = self.get_frontport(pp_port)
             label = f"{self.pp}/{self.get_frontport(pp_port)}"
 
         device_cable = self._build_device_x_cable(device, interface, a_side=device_side_a, a_side_label=label)
-
-        utils.save_cables(
-            logger=self.logger, allow_skip=self.allow_skip, cables=[pp_cable, device_cable]
-        )
+        utils.save_cables(logger=self.logger, allow_skip=self.allow_skip, cables=[pp_cable, device_cable])
 
     def create_circuit(self) -> Circuit:
         """
@@ -357,13 +352,14 @@ class NiceCircuit:
         self.termination_a = self.create_site_termination(side="A", site=self.side_a_site)
         if not self.termination_a:
             return
-        
+
         self.termination_z = self.create_site_termination(side="Z", site=self.side_z_site)
         if not self.termination_z:
             return
-        
+
         self.create_standard_cables(self.pp, self.pp_port, self.device, self.interface, self.termination_a)
         self.create_standard_cables(self.z_pp, self.z_pp_port, self.z_device, self.z_interface, self.termination_z)
+
 
 @dataclass
 class NiceBulkCircuits(NiceCircuit):
@@ -438,7 +434,6 @@ class NiceP2PCircuit(NiceCircuit):
 
     def create(self):
         self.logger.log_info(f"Beginning P2P {self.cid} / {self.description} creation..")
-        #super().create_standard()
+        # super().create_standard()
         super().create_p2p()
         self.logger.log_info(f"Finished {self.cid}.")
-
