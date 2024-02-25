@@ -9,7 +9,7 @@ from extras.scripts import Script
 from circuits.choices import CircuitStatusChoices
 from circuits.models import Circuit, CircuitType, Provider, ProviderNetwork, CircuitTermination
 from dcim.choices import CableTypeChoices
-from dcim.models import Cable, Device, Interface, RearPort, Site
+from dcim.models import Cable, Device, FrontPort,Interface, RearPort, Site
 from utilities.choices import ColorChoices
 from utilities.exceptions import AbortScript
 
@@ -219,7 +219,7 @@ def save_cables(logger: Script, cables: list, allow_skip: bool = False):
                         error += f"\tValidation Error saving Cable: {e.messages}\n"
                 handle_errors(logger.log_failure, error, allow_skip)
             except AttributeError as e:
-                error = f"\tUnknown error saving Cable: {e}"
+                error = f"\tUnknown error saving Cable {cable}: {e}"
                 handle_errors(logger.log_failure, error, allow_skip)
             except Exception as e:
                 error = f"\tUnknown error saving Cable: {e}"
@@ -279,3 +279,21 @@ def save_terminations(logger: Script, termination: list):
         termination.save()
         name = termination.site if termination.site else termination.provider_network
         logger.log_success(f"\tSaved Termination {termination.term_side}: {name}")
+
+def save_rearport(logger: Script, rear_port: RearPort):
+    """
+    Save RearPort
+    """
+    if isinstance(rear_port, RearPort):
+        rear_port.full_clean()
+        rear_port.save()
+        logger.log_success(f"\tCreated RearPort {rear_port.name}")
+
+def save_frontport(logger: Script, front_port: RearPort):
+    """
+    Save FrontPort
+    """
+    if isinstance(front_port, FrontPort):
+        front_port.full_clean()
+        front_port.save()
+        logger.log_success(f"\tCreated FrontPort {front_port.name}")

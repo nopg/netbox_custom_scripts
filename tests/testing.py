@@ -152,10 +152,10 @@ def my_test_bulk(logger):
 	filename = "local/tests/testing-gui_single_circuit.csv"
 	#filename = "local/tests/test_bulk_circuits_malformed.csv"
 	
-	circuits = NiceBulkCircuits.from_csv(logger=logger, filename=filename, circuit_num=2)
+	circuits = NiceBulkCircuits.from_csv(logger=logger, filename=filename, circuit_num=9)
 
-	# from rich.pretty import pprint
-	# pprint(circuits)
+	from rich.pretty import pprint
+	pprint(circuits)
 
 	for circuit in circuits:
 		circuit.create()
@@ -221,10 +221,10 @@ class Test(Script):
 		#rear_front_portnames()
 		#pp_info()
 		#term_descrs()
-		pp_port_descrs()
+		#pp_port_descrs()
 		#my_test1(self)
-
-		#my_test_bulk(logger=self)
+		
+		my_test_bulk(logger=self)
 		#my_p2p_tests(self)
 		#my_pp_updater_tests(self)
 
