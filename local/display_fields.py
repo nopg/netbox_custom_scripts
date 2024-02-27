@@ -1,6 +1,6 @@
 from circuits.models import CircuitType, Provider, ProviderNetwork
 from dcim.models import Device, Interface, RearPort, Site
-from extras.scripts import BooleanVar, FileVar,IntegerVar, ObjectVar, StringVar, TextVar
+from extras.scripts import BooleanVar, FileVar, IntegerVar, ObjectVar, StringVar, TextVar
 
 YYYY_MM_DD = r"^\d{4}-([0]\d|1[0-2])-([0-2]\d|3[01])$"
 
@@ -44,6 +44,8 @@ pp_port = ObjectVar(model=RearPort, label="Patch Panel Port", required=False, qu
 pp_new_port = IntegerVar(
     label="CREATE Patch Panel Port #:",
     description="Will be 'Front# and Back#, Enable creation via check box below.",
+    min_value=0,
+    max_value=48,
     required=False,
 )
 pp_info = StringVar(
@@ -109,6 +111,8 @@ z_pp_port = ObjectVar(
 z_pp_new_port = IntegerVar(
     label="CREATE Patch Panel Z Port #:",
     description="Will be 'Front# and Back#, Enable creation via check box below.",
+    min_value=0,
+    max_value=48,
     required=False,
 )
 z_pp_info = StringVar(
@@ -154,7 +158,7 @@ HEADER_MAPPING = {
     # Circuit
     "Circuit ID": "cid",
     "Description": "description",
-    "Provider": "provider",    
+    "Provider": "provider",
     "Circuit Type": "circuit_type",
     "Side A Site": "side_a_site",
     "Side Z Site": "side_z_site",
@@ -179,7 +183,7 @@ HEADER_MAPPING = {
     "Comments": "comments",
     # Cables (Side Z)
     "Patch Panel Z": "z_pp",
-    "PP Port Z": "z_pp_port",
+    "PP Z Port": "z_pp_port",
     "PP Z New Port": "z_pp_new_port",
     "PP Z Port Description": "z_pp_port_description",
     "PP Z Info": "z_pp_info",

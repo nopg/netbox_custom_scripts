@@ -7,4 +7,4 @@ mycircuit2,Standard Circuit,myprovider1,mycircuittype1,Missing Device,mysite1,,,
 mycircuit3,Standard Circuit,myprovider1,mycircuittype1,Missing Device,mysite1,,,,,no device,myinterface1,,myprovidernetwork1,2/1/21,2/1/21,,,,,,,FALSE,TRUE,TRUE,TRUE
 mycircuit4,Standard Circuit,myprovider1,mycircuittype1,Missing Patch Panel,mysite1,,,,,mydevice1,myinterface1,,myprovidernetwork1,2/1/21,2/1/21,,,,,,,FALSE,TRUE,TRUE,TRUE
 mycircuit4,Standard Circuit,myprovider1,mycircuittype1,Extra Patch Panel,mysite1,mypatchpanel1,Back1,,,mydevice1,myinterface1,,myprovidernetwork1,2/1/21,2/1/21,,,,,,,TRUE,TRUE,TRUE,TRUE
-mycircuit5,Standard Circuit,myprovider1,mycircuittype1,New PP Port / The Standard,mysite1,mypatchpanel1,Rear1,33,TRUE,mydevice1,myinterface1,,myprovidernetwork1,2/1/21,2/1/21,,,,,,,,TRUE,,
+mycircuit5,Standard Circuit,myprovider1,mycircuittype1,New PP Port / The Standard,mysite2,mypatchpanel3,,12,TRUE,mydevice2,myinterface2,,myprovidernetwork1,2/1/21,2/1/21,,,,,,,,TRUE,,

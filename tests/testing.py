@@ -2,6 +2,7 @@ import sys
 
 from extras.scripts import Script
 from circuits.models import Circuit, CircuitTermination, CircuitType, Provider, ProviderNetwork
+from dcim.choices import PortTypeChoices
 from dcim.models import Cable, Device, RearPort, FrontPort, Interface, RearPortTemplate, FrontPortTemplate, Site
 from utilities.exceptions import AbortScript
 
@@ -208,6 +209,18 @@ def pp_port_descrs():
 			print(f"FP: {fp},\trp-descr: {fp.description}")
 			print(f"myRp::--- {fp.rear_port.description}")
 
+def my_pp_creator(logger):
+	type: RearPort = PortTypeChoices.TYPE_LC
+	pp = Device.objects.get(name="mypatchpanel3")
+	utils.create_extra_pp_ports(port_num=24, type=type, pp=pp, logger=logger)
+
+def my_bun_tester():
+
+	bun = "1234"
+	for i in range(33, 3000, 50):
+		print(i)
+		utils.get_bun_link(str(i))
+
 class Test(Script):
 	class Meta:
 		name = "misc tests"
@@ -224,7 +237,9 @@ class Test(Script):
 		#pp_port_descrs()
 		#my_test1(self)
 		
-		my_test_bulk(logger=self)
+		#my_test_bulk(logger=self)
 		#my_p2p_tests(self)
 		#my_pp_updater_tests(self)
+		#my_pp_creator(self)
+		my_bun_tester()
 

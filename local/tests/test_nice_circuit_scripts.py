@@ -294,6 +294,62 @@ class CircuitAdderTestCase(TestCase):
 
         self.assertIn("Cable Direct to Device chosen, but Patch Panel", logs.output[0])
 
+    def test_new_pp_port_fail_1(self):
+        device = Device(
+            site=Site.objects.first(),
+            device_type=DeviceType.objects.get(model="Patch-Panel-Type 1"),
+            role=DeviceRole.objects.first(),
+            name="Patch Panel 1",
+        )
+        device.save()    
+
+        csv_test_filename_fail = "local/tests/test_bulk_circuits_fail.csv"
+        with self.assertLogs(
+            "netbox.scripts.scripts.nice_circuit_scripts.StandardCircuit", level="ERROR"
+        ) as logs:
+            circuits = NiceBulkCircuits.from_csv(logger=StandardCircuit(), filename=csv_test_filename_fail, circuit_num=9)
+            _ = circuits[0].create()
+
+        self.assertIn("unless \"Create Patch Panel Interface\" is selected", logs.output[0])
+    
+    def test_new_pp_port_fail_2(self):
+        device = Device(
+            site=Site.objects.first(),
+            device_type=DeviceType.objects.get(model="Patch-Panel-Type 1"),
+            role=DeviceRole.objects.first(),
+            name="Patch Panel 1",
+        )
+        device.save()    
+
+        csv_test_filename_fail = "local/tests/test_bulk_circuits_fail.csv"
+        with self.assertLogs(
+            "netbox.scripts.scripts.nice_circuit_scripts.StandardCircuit", level="ERROR"
+        ) as logs:
+            circuits = NiceBulkCircuits.from_csv(logger=StandardCircuit(), filename=csv_test_filename_fail, circuit_num=10)
+            _ = circuits[0].create()
+            
+        self.assertIn("Cannot choose an existing Patch Panel Port", logs.output[0])
+        self.assertIn("AND enable 'Create Patch Panel Port' simultaneously", logs.output[0])
+
+    def test_new_pp_port_fail_3(self):
+        device = Device(
+            site=Site.objects.first(),
+            device_type=DeviceType.objects.get(model="Patch-Panel-Type 1"),
+            role=DeviceRole.objects.first(),
+            name="Patch Panel 1",
+        )
+        device.save()    
+
+        csv_test_filename_fail = "local/tests/test_bulk_circuits_fail.csv"
+        with self.assertLogs(
+            "netbox.scripts.scripts.nice_circuit_scripts.StandardCircuit", level="ERROR"
+        ) as logs:
+            circuits = NiceBulkCircuits.from_csv(logger=StandardCircuit(), filename=csv_test_filename_fail, circuit_num=11)
+            _ = circuits[0].create()
+            
+        self.assertIn("New Patch Panel Port must be below 48", logs.output[0])
+
+
     ## SUCCESSES
     def test_bulk_circuit_1_direct_to_device(self):
         csv_test_filename = "local/tests/test_bulk_circuits.csv"
@@ -398,6 +454,41 @@ class CircuitAdderTestCase(TestCase):
         self.assertEqual(term_a_count, 1)
         self.assertEqual(term_z_count, 1)
         self.assertEqual(cable_count, 4)
+        # No warnings
+        self.assertFalse(any("WARNING" in log for log in logs.output))
+        # No errors
+        self.assertFalse(any("ERROR" in log for log in logs.output))
+
+    def test_the_standard_new_pp_port(self):
+        # Build PP / Etc
+        device = Device(
+            site=Site.objects.first(),
+            device_type=DeviceType.objects.get(model="Patch-Panel-Type 1"),
+            role=DeviceRole.objects.first(),
+            name="Patch Panel 1",
+        )
+        device.save()
+
+        csv_test_filename = "local/tests/test_bulk_circuits.csv"
+        circuits = NiceBulkCircuits.from_csv(logger=StandardCircuit(), overwrite=False, filename=csv_test_filename, circuit_num=7)
+
+        with self.assertLogs(
+            "netbox.scripts.scripts.nice_circuit_scripts.StandardCircuit", level="INFO"
+        ) as logs:  # LogLevelChoices.LOG_SUCCESS
+            _ = circuits[0].create()
+
+        # Correct Logs
+        self.assertTrue(any("Saved Circuit:" in  log for log in logs.output))
+        term_count = sum(log.count("Saved Termination") for log in logs.output)
+        self.assertEqual(sum(log.count("Created RearPort Rear7") for log in logs.output), 1)
+        self.assertEqual(sum(log.count("Created FrontPort Front7") for log in logs.output), 1)
+        extra_rp_count = sum(log.count("Saved: Rear") for log in logs.output)
+        extra_fp_count = sum(log.count("Saved: Front") for log in logs.output)
+        cable_count = sum(log.count("Saved Cable:") for log in logs.output)
+        self.assertEqual(term_count, 2)
+        self.assertEqual(cable_count, 2)
+        self.assertEqual(extra_rp_count, 6)
+        self.assertEqual(extra_fp_count, 6)
         # No warnings
         self.assertFalse(any("WARNING" in log for log in logs.output))
         # No errors

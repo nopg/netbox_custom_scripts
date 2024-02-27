@@ -76,7 +76,7 @@ class NiceCircuit:
         """
         Used to prepare netbox objects, if loaded from a CSV originally
         """
-        for field in ["direct_to_device", "z_direct_to_device", "allow_skip", "review", "overwrite"]:
+        for field in ["direct_to_device", "z_direct_to_device", "allow_skip", "review", "overwrite", "create_pp_port", "z_create_pp_port"]:
             value = getattr(self, field)
             setattr(self, field, utils.fix_bools(value))
         self.cir = self.cir or 0
@@ -91,6 +91,7 @@ class NiceCircuit:
         self.interface = utils.get_interface_by_name(name=self.interface, device=self.device)
         self.pp = utils.get_device_by_name(name=self.pp, site=self.side_a_site)
         self.pp_port = utils.get_rearport_by_name(name=self.pp_port, device=self.pp)
+        self.pp_new_port = utils.validate_pp_new_port(port_num=self.pp_new_port, logger=self.logger, skip=self.allow_skip)
         self.install_date = utils.validate_date(self.install_date)
 
         # P2P
@@ -98,38 +99,43 @@ class NiceCircuit:
         self.z_interface = utils.get_interface_by_name(name=self.z_interface, device=self.z_device)
         self.z_pp = utils.get_device_by_name(name=self.z_pp, site=self.side_z_site)
         self.z_pp_port = utils.get_rearport_by_name(name=self.z_pp_port, device=self.z_pp)
+        self.z_pp_new_port = utils.validate_pp_new_port(port_num=self.z_pp_new_port, logger=self.logger, skip=self.allow_skip)
 
     def create_new_pp_port(self, pp: Device, port_num: int, description: str) -> None:
         error = False
+
         rps = RearPort.objects.filter(device=pp)
-    
         for rp in rps:
             if f"Rear{port_num}" in rp.name:
                 error = f"Patch Panel RearPort {pp}/{port_num} already exists! Skipping."
-        fps = FrontPort.objects.filter(device=pp)
 
+        fps = FrontPort.objects.filter(device=pp)
         for fp in fps:
             if f"Front{port_num}" in fp.name:
                 error = f"Patch Panel FrontPort {pp}/{port_num} already exists! Skipping."
         if error:
             utils.handle_errors(self.logger.log_failure, error, self.allow_skip)
-        
-        pp_rearport = RearPort(
-            name=f"Rear{port_num}",
-            type=self.pp_port_type,
-            device=pp,
-            description=description,
+
+    #     handle better: 
+	# ationError(errors)
+	# django.core.exceptions.ValidationError: {'device': ['This field cannot be nullr
+	# move create_rearport into class, less vars, handle error if no pp
+        pp_rearport = utils.create_rearport(
+            name=f"Rear{port_num}", type=self.pp_port_type, pp=pp, description=description
         )
+        if not pp_rearport:
+            return
+        
         utils.save_rearport(self.logger, pp_rearport)
 
-        pp_frontport = FrontPort(
-            name=f"Front{port_num}",
-            type=self.pp_port_type,
-            device=pp,
-            rear_port=pp_rearport,
-            description=description,
+        pp_frontport = utils.create_frontport(
+            name=f"Front{port_num}", type=self.pp_port_type, pp=pp, rear_port=pp_rearport, description=description
         )
+        if not pp_frontport:
+            return
+        
         utils.save_frontport(self.logger, pp_frontport)
+        utils.create_extra_pp_ports(port_num=port_num, type=self.pp_port_type, pp=pp, logger=self.logger, allow_skip=self.allow_skip)
 
         return pp_rearport
 
@@ -143,36 +149,48 @@ class NiceCircuit:
 
     def _validate_sites(self) -> None:
         if self.side_a_site == self.side_z_site:
-            error = (f"Cannot terminate {self.side_a_site} to {self.side_z_site}")
+            error = f"Cannot terminate {self.side_a_site} to {self.side_z_site}"
             raise AbortScript(error)
-    
+
     def _init_patch_panel_properties(self) -> None:
         """
         Initialize any Patch Panel Properties
         Including if there shouldn't be a Patch Panel
         """
+        error = False
         if self.pp_new_port and not self.create_pp_port:
-            raise AbortScript(f"Cannot create new Patch Panel Port #: {self.pp_new_port} unless \"Create Patch Panel Interface\" is selected.")
+            error = f"Cannot create new Patch Panel Port #: {self.pp_new_port} unless \"Create Patch Panel Interface\" is selected."
         elif self.z_pp_new_port and not self.z_create_pp_port:
-            raise AbortScript(f"Cannot create new Patch Panel Port #: {self.pp_new_port} unless \"Create Patch Panel Interface\" is selected.")
+            error = f"Cannot create new Patch Panel Port #: {self.pp_new_port} unless \"Create Patch Panel Interface\" is selected."
         elif self.pp_port and self.create_pp_port:
-            raise AbortScript(f"Cannot choose an existing Patch Panel Port ({self.pp_port} AND enable 'Create Patch Panel Port' simultaneously.")
+            error = f"Cannot choose an existing Patch Panel Port ({self.pp_port}) AND enable 'Create Patch Panel Port' simultaneously."
         elif self.z_pp_port and self.z_create_pp_port:
-            raise AbortScript(f"Cannot choose an existing Patch Panel Port ({self.z_pp_port} AND enable 'Create Patch Panel Port' simultaneously.")
+            error = f"Cannot choose an existing Patch Panel Port ({self.z_pp_port} AND enable 'Create Patch Panel Port' simultaneously."
+        if error:
+            utils.handle_errors(self.logger.log_failure, error, self.allow_skip)
 
         # Create Patch Panel Port?
         if self.pp_new_port and self.create_pp_port:
             self.pp_port = self.create_new_pp_port(self.pp, self.pp_new_port, self.pp_port_description)
         if self.z_pp_new_port and self.z_create_pp_port:
             self.z_pp_port = self.create_new_pp_port(self.z_pp, self.z_pp_new_port, self.z_pp_port_description)
-        
-        valid = self._validate_x_cables(self.pp, self.pp_port, self.device, self.interface, self.direct_to_device, self.pp_port_description)
+
+        valid = self._validate_x_cables(
+            self.pp, self.pp_port, self.device, self.interface, self.direct_to_device, self.pp_port_description
+        )
         if not valid:
             return
-        if isinstance(self, NiceP2PCircuit):  
-            valid = self._validate_x_cables(self.z_pp, self.z_pp_port, self.z_device, self.z_interface, self.z_direct_to_device, self.z_pp_port_description)
+        if isinstance(self, NiceP2PCircuit):
+            valid = self._validate_x_cables(
+                self.z_pp,
+                self.z_pp_port,
+                self.z_device,
+                self.z_interface,
+                self.z_direct_to_device,
+                self.z_pp_port_description,
+            )
             if not valid:
-                return       
+                return
 
     def _validate_data(self) -> None:
         self._validate_mandatory_values()
@@ -299,17 +317,27 @@ class NiceCircuit:
 
         return rear_port.frontports.first()
 
-    def _validate_x_cables(self, pp: Device, pp_port: RearPort, device: Device, interface: Interface, direct_to_device: bool, pp_port_description: str) -> None:
+    def _validate_x_cables(
+        self,
+        pp: Device,
+        pp_port: RearPort,
+        device: Device,
+        interface: Interface,
+        direct_to_device: bool,
+        pp_port_description: str,
+    ) -> None:
         """
         Validate we have what is necessary to create the cables
         """
-        
+
         valid = True
         error = False
         if device is None or interface is None:
             error = f"\tCID '{self.cid}': Error: Missing Device ({device}) and/or Interface {interface}."
         elif direct_to_device and (pp or pp_port):
-            error = f"\tCID '{self.cid}': Error: Cable Direct to Device chosen, but Patch Panel ({pp}) was also selected."
+            error = (
+                f"\tCID '{self.cid}': Error: Cable Direct to Device chosen, but Patch Panel ({pp}) was also selected."
+            )
         elif not direct_to_device and (pp is None or pp_port is None):
             error = f"\tCID '{self.cid}': Error: Patch Panel or port {pp}/{pp_port} missing, and 'Cable Direct to Device' is not checked."
         # Temp? Update Description
@@ -357,7 +385,13 @@ class NiceCircuit:
         )
 
     def create_standard_cables(
-        self, pp: Device, pp_port: RearPort, device: Device, interface: Interface, termination: CircuitTermination, direct_to_device: bool
+        self,
+        pp: Device,
+        pp_port: RearPort,
+        device: Device,
+        interface: Interface,
+        termination: CircuitTermination,
+        direct_to_device: bool,
     ):
         if direct_to_device:
             pp_cable = None
@@ -398,41 +432,6 @@ class NiceCircuit:
             utils.save_circuit(circuit, self.logger, allow_skip=self.allow_skip)
 
         return circuit
-
-    def create_standard(self, p2p: bool = False) -> None:
-        self.circuit = self.create_circuit()
-        if not self.circuit:
-            return
-
-        self.termination_a = self.create_site_termination(side="A", site=self.side_a_site)
-        if not self.termination_a:
-            return
-
-        self.termination_z = self.create_provider_network_termination(
-            side="Z", provider_network=self.side_z_providernetwork
-        )
-        if not self.termination_z:
-            return
-
-        self._init_patch_panel_properties()
-        self.create_standard_cables(self.pp, self.pp_port, self.device, self.interface, self.termination_a, self.direct_to_device)
-
-    def create_p2p(self) -> None:
-        self.circuit = self.create_circuit()
-        if not self.circuit:
-            return
-
-        self.termination_a = self.create_site_termination(side="A", site=self.side_a_site)
-        if not self.termination_a:
-            return
-
-        self.termination_z = self.create_site_termination(side="Z", site=self.side_z_site)
-        if not self.termination_z:
-            return
-
-        self._init_patch_panel_properties()
-        self.create_standard_cables(self.pp, self.pp_port, self.device, self.interface, self.termination_a, self.direct_to_device)
-        self.create_standard_cables(self.z_pp, self.z_pp_port, self.z_device, self.z_interface, self.termination_z, self.z_direct_to_device)
 
 
 @dataclass
@@ -493,8 +492,28 @@ class NiceStandardCircuit(NiceCircuit):
         Standard Circuit Creation
         """
         self.logger.log_info(f"Beginning Standard {self.cid} / {self.description} creation..")
-        super().create_standard()
+        self.create_standard()
         self.logger.log_info(f"Finished {self.cid}.")
+
+    def create_standard(self, p2p: bool = False) -> None:
+        self.circuit = super().create_circuit()
+        if not self.circuit:
+            return
+
+        self.termination_a = super().create_site_termination(side="A", site=self.side_a_site)
+        if not self.termination_a:
+            return
+
+        self.termination_z = super().create_provider_network_termination(
+            side="Z", provider_network=self.side_z_providernetwork
+        )
+        if not self.termination_z:
+            return
+
+        super()._init_patch_panel_properties()
+        super().create_standard_cables(
+            self.pp, self.pp_port, self.device, self.interface, self.termination_a, self.direct_to_device
+        )
 
 
 @dataclass
@@ -509,5 +528,26 @@ class NiceP2PCircuit(NiceCircuit):
     def create(self):
         self.logger.log_info(f"Beginning P2P {self.cid} / {self.description} creation..")
         # super().create_standard()
-        super().create_p2p()
+        self.create_p2p()
         self.logger.log_info(f"Finished {self.cid}.")
+
+    def create_p2p(self) -> None:
+        self.circuit = super().create_circuit()
+        if not self.circuit:
+            return
+
+        self.termination_a = super().create_site_termination(side="A", site=self.side_a_site)
+        if not self.termination_a:
+            return
+
+        self.termination_z = super().create_site_termination(side="Z", site=self.side_z_site)
+        if not self.termination_z:
+            return
+
+        super()._init_patch_panel_properties()
+        super().create_standard_cables(
+            self.pp, self.pp_port, self.device, self.interface, self.termination_a, self.direct_to_device
+        )
+        super().create_standard_cables(
+            self.z_pp, self.z_pp_port, self.z_device, self.z_interface, self.termination_z, self.z_direct_to_device
+        )

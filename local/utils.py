@@ -8,8 +8,8 @@ from extras.scripts import Script
 
 from circuits.choices import CircuitStatusChoices
 from circuits.models import Circuit, CircuitType, Provider, ProviderNetwork, CircuitTermination
-from dcim.choices import CableTypeChoices
-from dcim.models import Cable, Device, FrontPort,Interface, RearPort, Site
+from dcim.choices import CableTypeChoices, PortTypeChoices
+from dcim.models import Cable, Device, FrontPort, Interface, RearPort, Site
 from utilities.choices import ColorChoices
 from utilities.exceptions import AbortScript
 
@@ -20,6 +20,45 @@ import re
 from django.core.files.uploadedfile import InMemoryUploadedFile
 
 BULK_SCRIPT_ALLOWED_USERS = ["netbox", "danny.berman", "joe.deweese", "loran.fuchs"]
+
+
+def generate_range(input_string):
+    # Convert the input string to an integer
+    num = int(input_string)
+
+    # Calculate the start and end values for the range
+    start = num - (num % 50) + 1
+    end = start + 49
+
+    # Ensure that the start and end values are within the valid range of 4-digit numbers
+    start = max(start, 1)
+    end = min(end, 9999)
+
+    # Pad the start and end strings with zeros to ensure they have the same length
+    start_str = str(start).zfill(4)
+    end_str = str(end).zfill(4)
+
+    return start_str, end_str
+
+# # Test the function
+# input_string = "1234"
+# start, end = generate_range(input_string)
+# print(start, "-", end)
+
+def is_four_digit_numeric(string):
+    # Define a regular expression pattern to match exactly 4 digits
+    pattern = r'^\d{4}$'
+    # Use the match function to check if the string matches the pattern
+    return bool(re.match(pattern, string))
+
+def get_bun_link(bun: str) -> str:
+    if not is_four_digit_numeric(bun):
+        print("nope")
+        return
+    start, end = generate_range(bun)
+    print(start, '-', end)
+    return
+    
 
 
 def handle_errors(logger: Script, error: str, skip: bool = False):
@@ -46,7 +85,7 @@ def validate_date(date_str: str) -> str:
     try:
         date = date_parser.parse(date_str)
         if not 1980 <= date.year <= 2036:
-            raise AbortScript(f"Date: {date_str} is outside constraints: Minimum year: 1980, Maximum year: 2026")
+            raise AbortScript(f"Date: {date_str} is outside constraints: Minimum year: 1980, Maximum year: 2036")
     except (ParserError, ValueError, TypeError):
         raise AbortScript(error)
     return date.date().isoformat()
@@ -57,6 +96,19 @@ def validate_user(user) -> bool:
     Validate if the user is allowed to perform bulk operations.
     """
     return user.username in BULK_SCRIPT_ALLOWED_USERS
+
+
+def validate_pp_new_port(port_num: str, logger, skip):
+    if not port_num:
+        return ""
+    
+    if not port_num.isnumeric():
+        handle_errors(logger.log_failure, error=f"Invalid value for new Patch Panel Port: {port_num}", skip=skip)
+
+    if int(port_num) > 48:
+        handle_errors(logger.log_failure, error=f"New Patch Panel Port must be below 48: {port_num}", skip=skip)
+    
+    return int(port_num)
 
 
 def get_provider_by_name(name: str) -> Provider | None:
@@ -154,7 +206,7 @@ def load_data_from_csv(filename) -> list[dict]:
 
 
 def _pp_port_update(logger, port, old, new, revert_if_failed) -> None:
-    
+
     old_name = port.name
     if old not in old_name:
         error = f"{old} was not found in the port name, typo?"
@@ -170,6 +222,7 @@ def _pp_port_update(logger, port, old, new, revert_if_failed) -> None:
         logger.log_success(f"Renamed {old_name} to: {port.name}")
     except (AttributeError, TypeError, ValidationError) as e:
         raise AbortScript(e)
+
 
 def pp_port_update(
     logger: Script,
@@ -198,6 +251,53 @@ def pp_port_update(
         _pp_port_update(logger, rearport, old, new, revert_if_failed)
 
     return pp
+
+
+def create_rearport(name: str, type: PortTypeChoices, pp: Device, description: str = "") -> RearPort:
+    # if not pp:
+    #     handle_errors(logger, )
+    return RearPort(
+        name=name,
+        type=type,
+        device=pp,
+        description=description,
+    )
+
+
+def create_frontport(
+    name: str, type: PortTypeChoices, pp: Device, rear_port: RearPort, description: str = ""
+) -> FrontPort:
+    return FrontPort(
+        name=name,
+        type=type,
+        device=pp,
+        rear_port=rear_port,
+        description=description,
+    )
+
+
+def create_extra_pp_ports(
+    port_num: int, type: PortTypeChoices, pp: Device, logger: Script, allow_skip: bool = False
+) -> None:
+    rps = pp.rearports.all()
+
+    for i in range(1, port_num):
+        rear_port_name = f"Rear{i}"
+        front_port_name = f"Front{i}"
+        if not any(rp.name == rear_port_name for rp in rps):
+            try:
+                new_rp = create_rearport(name=rear_port_name, type=type, pp=pp)
+                new_rp.full_clean()
+                new_rp.save()
+                logger.log_success(f"Saved: {new_rp}")
+
+                new_fp = create_frontport(name=front_port_name, type=type, pp=pp, rear_port=new_rp)
+                new_fp.full_clean()
+                new_fp.save()
+                logger.log_success(f"Saved: {new_fp}")
+            except ValidationError as e:
+                error = f"Error creating Patch Panel Port, please standardize port names before continuing.\n{e}"
+                handle_errors(logger=logger.log_failure, error=error, skip=allow_skip)
 
 
 def save_cables(logger: Script, cables: list, allow_skip: bool = False):
@@ -280,6 +380,7 @@ def save_terminations(logger: Script, termination: list):
         name = termination.site if termination.site else termination.provider_network
         logger.log_success(f"\tSaved Termination {termination.term_side}: {name}")
 
+
 def save_rearport(logger: Script, rear_port: RearPort):
     """
     Save RearPort
@@ -288,6 +389,7 @@ def save_rearport(logger: Script, rear_port: RearPort):
         rear_port.full_clean()
         rear_port.save()
         logger.log_success(f"\tCreated RearPort {rear_port.name}")
+
 
 def save_frontport(logger: Script, front_port: RearPort):
     """
