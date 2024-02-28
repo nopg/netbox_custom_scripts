@@ -40,11 +40,6 @@ def generate_range(input_string):
 
     return start_str, end_str
 
-# # Test the function
-# input_string = "1234"
-# start, end = generate_range(input_string)
-# print(start, "-", end)
-
 def is_four_digit_numeric(string):
     # Define a regular expression pattern to match exactly 4 digits
     pattern = r'^\d{4}$'
@@ -188,7 +183,7 @@ def load_data_from_csv(filename) -> list[dict]:
     else:
         csv_file = filename
 
-    circuits_csv = csv.DictReader(codecs.iterdecode(csv_file, "utf-8"))
+    circuits_csv = csv.DictReader(codecs.iterdecode(csv_file, "utf-8-sig"))    
 
     csv_data = []
     for row in circuits_csv:

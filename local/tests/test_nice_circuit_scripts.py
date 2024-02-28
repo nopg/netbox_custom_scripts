@@ -5,7 +5,16 @@
 from django.contrib.contenttypes.models import ContentType
 
 from dcim.choices import InterfaceTypeChoices, PortTypeChoices
-from dcim.models import Device, DeviceType, DeviceRole, FrontPortTemplate, Interface, Manufacturer, RearPortTemplate, Site
+from dcim.models import (
+    Device,
+    DeviceType,
+    DeviceRole,
+    FrontPortTemplate,
+    Interface,
+    Manufacturer,
+    RearPortTemplate,
+    Site,
+)
 from extras.choices import CustomFieldTypeChoices
 from extras.models import CustomField
 from circuits.models import Circuit, CircuitType, CircuitTermination, Provider, ProviderNetwork
@@ -25,8 +34,9 @@ class CircuitAdderTestCase(TestCase):
 
     :form_data: Data to be used when creating a new object.
     """
+
     form_data = {}
-    
+
     # Set up Test Database
     @classmethod
     def setUpTestData(cls):
@@ -76,7 +86,6 @@ class CircuitAdderTestCase(TestCase):
         )
         Site.objects.bulk_create(sites)
 
-
         manufacturer = Manufacturer.objects.create(name='Manufacturer 1', slug='manufacturer-1')
         device_types = (
             DeviceType(manufacturer=manufacturer, model='Device-Type 1', slug='device-type-1'),
@@ -96,10 +105,30 @@ class CircuitAdderTestCase(TestCase):
         RearPortTemplate.objects.bulk_create(rearport_templates)
 
         frontport_templates = (
-            FrontPortTemplate(device_type=device_types[3], name="Front 1", type=PortTypeChoices.TYPE_LC, rear_port=rearport_templates[0]),
-            FrontPortTemplate(device_type=device_types[3], name="Front 2", type=PortTypeChoices.TYPE_LC, rear_port=rearport_templates[1]),
-            FrontPortTemplate(device_type=device_types[3], name="Front 3", type=PortTypeChoices.TYPE_LC, rear_port=rearport_templates[2]),
-            FrontPortTemplate(device_type=device_types[3], name="Front 4", type=PortTypeChoices.TYPE_LC, rear_port=rearport_templates[3]),
+            FrontPortTemplate(
+                device_type=device_types[3],
+                name="Front 1",
+                type=PortTypeChoices.TYPE_LC,
+                rear_port=rearport_templates[0],
+            ),
+            FrontPortTemplate(
+                device_type=device_types[3],
+                name="Front 2",
+                type=PortTypeChoices.TYPE_LC,
+                rear_port=rearport_templates[1],
+            ),
+            FrontPortTemplate(
+                device_type=device_types[3],
+                name="Front 3",
+                type=PortTypeChoices.TYPE_LC,
+                rear_port=rearport_templates[2],
+            ),
+            FrontPortTemplate(
+                device_type=device_types[3],
+                name="Front 4",
+                type=PortTypeChoices.TYPE_LC,
+                rear_port=rearport_templates[3],
+            ),
         )
         FrontPortTemplate.objects.bulk_create(frontport_templates)
 
@@ -160,8 +189,8 @@ class CircuitAdderTestCase(TestCase):
         cf_review = CustomField(name="review", type=CustomFieldTypeChoices.TYPE_BOOLEAN)
         cf_review.full_clean()
         cf_review.save()
-        cf_review.content_types.set([ContentType.objects.get_for_model(Circuit)] )
-    
+        cf_review.content_types.set([ContentType.objects.get_for_model(Circuit)])
+
     # Tests
     def test_get_provider_by_name(self):
         provider = get_provider_by_name("Provider 1")
@@ -213,37 +242,46 @@ class CircuitAdderTestCase(TestCase):
 
     def test_load_data_from_csv(self):
         csv_test_filename = "local/tests/test_bulk_circuits.csv"
-        circuits = NiceBulkCircuits.from_csv(logger=StandardCircuit(), overwrite=False, filename=csv_test_filename, circuit_num=1)
+        circuits = NiceBulkCircuits.from_csv(
+            logger=StandardCircuit(), overwrite=False, filename=csv_test_filename, circuit_num=1
+        )
         self.assertIsInstance(circuits[0], NiceStandardCircuit)
-
 
     ## FAILURES
     def test_load_data_from_csv_fail_notfound(self):
         csv_test_filename_notfound = "local/tests/test_bulk_circuits_notfound.csv"
         with self.assertRaisesMessage(AbortScript, "not found!"):
-            circuits = NiceBulkCircuits.from_csv(logger=StandardCircuit(), overwrite=False, filename=csv_test_filename_notfound)
+            circuits = NiceBulkCircuits.from_csv(
+                logger=StandardCircuit(), overwrite=False, filename=csv_test_filename_notfound
+            )
 
     def test_load_data_from_csv_fail_missing_circuittype(self):
         csv_test_filename_fail = "local/tests/test_bulk_circuits_fail.csv"
         with self.assertRaisesMessage(AbortScript, "Missing/Not Found Mandatory Value"):
-            circuits = NiceBulkCircuits.from_csv(logger=StandardCircuit(), filename=csv_test_filename_fail, circuit_num=1)
-    
+            circuits = NiceBulkCircuits.from_csv(
+                logger=StandardCircuit(), filename=csv_test_filename_fail, circuit_num=1
+            )
+
     def test_load_data_from_csv_fail_missing_provider(self):
         csv_test_filename_fail = "local/tests/test_bulk_circuits_fail.csv"
         with self.assertRaisesMessage(AbortScript, "Missing/Not Found Mandatory Value"):
-            circuits = NiceBulkCircuits.from_csv(logger=StandardCircuit(), filename=csv_test_filename_fail, circuit_num=2)
+            circuits = NiceBulkCircuits.from_csv(
+                logger=StandardCircuit(), filename=csv_test_filename_fail, circuit_num=2
+            )
 
     def test_load_data_from_csv_fail_missing_cid(self):
         csv_test_filename_fail = "local/tests/test_bulk_circuits_fail.csv"
         with self.assertRaisesMessage(AbortScript, "Missing/Not Found Mandatory Value"):
-            circuits = NiceBulkCircuits.from_csv(logger=StandardCircuit(), filename=csv_test_filename_fail, circuit_num=3)
+            circuits = NiceBulkCircuits.from_csv(
+                logger=StandardCircuit(), filename=csv_test_filename_fail, circuit_num=3
+            )
 
     def test_bulk_circuit_2_overwrite_fail(self):
         csv_test_filename_fail = "local/tests/test_bulk_circuits_fail.csv"
-        with self.assertLogs(
-            "netbox.scripts.scripts.nice_circuit_scripts.StandardCircuit", level="ERROR"
-        ) as logs: 
-            circuits = NiceBulkCircuits.from_csv(logger=StandardCircuit(), filename=csv_test_filename_fail, circuit_num=4)
+        with self.assertLogs("netbox.scripts.scripts.nice_circuit_scripts.StandardCircuit", level="ERROR") as logs:
+            circuits = NiceBulkCircuits.from_csv(
+                logger=StandardCircuit(), filename=csv_test_filename_fail, circuit_num=4
+            )
             _ = circuits[0].create()
 
         self.assertIn("existing Circuit found!", logs.output[0])
@@ -251,16 +289,18 @@ class CircuitAdderTestCase(TestCase):
     def test_bulk_circuit_3_missing_device(self):
         csv_test_filename_fail = "local/tests/test_bulk_circuits_fail.csv"
         with self.assertRaisesMessage(AbortScript, "Missing Device"):
-            circuits = NiceBulkCircuits.from_csv(logger=StandardCircuit(), filename=csv_test_filename_fail, circuit_num=5)
+            circuits = NiceBulkCircuits.from_csv(
+                logger=StandardCircuit(), filename=csv_test_filename_fail, circuit_num=5
+            )
             circuits[0].create()
 
     def test_bulk_circuit_4_missing_pp(self):
         csv_test_filename_fail = "local/tests/test_bulk_circuits_fail.csv"
-        
-        with self.assertLogs(
-            "netbox.scripts.scripts.nice_circuit_scripts.StandardCircuit", level="ERROR"
-        ) as logs:
-            circuits = NiceBulkCircuits.from_csv(logger=StandardCircuit(), filename=csv_test_filename_fail, circuit_num=6)
+
+        with self.assertLogs("netbox.scripts.scripts.nice_circuit_scripts.StandardCircuit", level="ERROR") as logs:
+            circuits = NiceBulkCircuits.from_csv(
+                logger=StandardCircuit(), filename=csv_test_filename_fail, circuit_num=6
+            )
             _ = circuits[0].create()
 
         self.assertIn("Patch Panel or port", logs.output[0])
@@ -268,10 +308,10 @@ class CircuitAdderTestCase(TestCase):
 
     def test_p2p_missing_z_site(self):
         csv_test_filename_fail = "local/tests/test_bulk_circuits_fail.csv"
-        with self.assertLogs(
-            "netbox.scripts.scripts.nice_circuit_scripts.StandardCircuit", level="WARNING"
-        ) as logs:
-            circuits = NiceBulkCircuits.from_csv(logger=StandardCircuit(), filename=csv_test_filename_fail, circuit_num=7)
+        with self.assertLogs("netbox.scripts.scripts.nice_circuit_scripts.StandardCircuit", level="WARNING") as logs:
+            circuits = NiceBulkCircuits.from_csv(
+                logger=StandardCircuit(), filename=csv_test_filename_fail, circuit_num=7
+            )
             _ = circuits[0].create()
 
         self.assertIn("Missing Site for Termination Z", logs.output[0])
@@ -286,10 +326,10 @@ class CircuitAdderTestCase(TestCase):
         device.save()
 
         csv_test_filename_fail = "local/tests/test_bulk_circuits_fail.csv"
-        with self.assertLogs(
-            "netbox.scripts.scripts.nice_circuit_scripts.StandardCircuit", level="ERROR"
-        ) as logs:
-            circuits = NiceBulkCircuits.from_csv(logger=StandardCircuit(), filename=csv_test_filename_fail, circuit_num=8)
+        with self.assertLogs("netbox.scripts.scripts.nice_circuit_scripts.StandardCircuit", level="ERROR") as logs:
+            circuits = NiceBulkCircuits.from_csv(
+                logger=StandardCircuit(), filename=csv_test_filename_fail, circuit_num=8
+            )
             _ = circuits[0].create()
 
         self.assertIn("Cable Direct to Device chosen, but Patch Panel", logs.output[0])
@@ -301,17 +341,17 @@ class CircuitAdderTestCase(TestCase):
             role=DeviceRole.objects.first(),
             name="Patch Panel 1",
         )
-        device.save()    
+        device.save()
 
         csv_test_filename_fail = "local/tests/test_bulk_circuits_fail.csv"
-        with self.assertLogs(
-            "netbox.scripts.scripts.nice_circuit_scripts.StandardCircuit", level="ERROR"
-        ) as logs:
-            circuits = NiceBulkCircuits.from_csv(logger=StandardCircuit(), filename=csv_test_filename_fail, circuit_num=9)
+        with self.assertLogs("netbox.scripts.scripts.nice_circuit_scripts.StandardCircuit", level="ERROR") as logs:
+            circuits = NiceBulkCircuits.from_csv(
+                logger=StandardCircuit(), filename=csv_test_filename_fail, circuit_num=9
+            )
             _ = circuits[0].create()
 
         self.assertIn("unless \"Create Patch Panel Interface\" is selected", logs.output[0])
-    
+
     def test_new_pp_port_fail_2(self):
         device = Device(
             site=Site.objects.first(),
@@ -319,15 +359,15 @@ class CircuitAdderTestCase(TestCase):
             role=DeviceRole.objects.first(),
             name="Patch Panel 1",
         )
-        device.save()    
+        device.save()
 
         csv_test_filename_fail = "local/tests/test_bulk_circuits_fail.csv"
-        with self.assertLogs(
-            "netbox.scripts.scripts.nice_circuit_scripts.StandardCircuit", level="ERROR"
-        ) as logs:
-            circuits = NiceBulkCircuits.from_csv(logger=StandardCircuit(), filename=csv_test_filename_fail, circuit_num=10)
+        with self.assertLogs("netbox.scripts.scripts.nice_circuit_scripts.StandardCircuit", level="ERROR") as logs:
+            circuits = NiceBulkCircuits.from_csv(
+                logger=StandardCircuit(), filename=csv_test_filename_fail, circuit_num=10
+            )
             _ = circuits[0].create()
-            
+
         self.assertIn("Cannot choose an existing Patch Panel Port", logs.output[0])
         self.assertIn("AND enable 'Create Patch Panel Port' simultaneously", logs.output[0])
 
@@ -338,29 +378,28 @@ class CircuitAdderTestCase(TestCase):
             role=DeviceRole.objects.first(),
             name="Patch Panel 1",
         )
-        device.save()    
+        device.save()
 
         csv_test_filename_fail = "local/tests/test_bulk_circuits_fail.csv"
-        with self.assertLogs(
-            "netbox.scripts.scripts.nice_circuit_scripts.StandardCircuit", level="ERROR"
-        ) as logs:
-            circuits = NiceBulkCircuits.from_csv(logger=StandardCircuit(), filename=csv_test_filename_fail, circuit_num=11)
+        with self.assertLogs("netbox.scripts.scripts.nice_circuit_scripts.StandardCircuit", level="ERROR") as logs:
+            circuits = NiceBulkCircuits.from_csv(
+                logger=StandardCircuit(), filename=csv_test_filename_fail, circuit_num=11
+            )
             _ = circuits[0].create()
-            
-        self.assertIn("New Patch Panel Port must be below 48", logs.output[0])
 
+        self.assertIn("New Patch Panel Port must be below 48", logs.output[0])
 
     ## SUCCESSES
     def test_bulk_circuit_1_direct_to_device(self):
         csv_test_filename = "local/tests/test_bulk_circuits.csv"
-        circuits = NiceBulkCircuits.from_csv(logger=StandardCircuit(), overwrite=False, filename=csv_test_filename, circuit_num=1)
-        with self.assertLogs(
-            "netbox.scripts.scripts.nice_circuit_scripts.StandardCircuit", level="INFO"
-        ) as logs:
+        circuits = NiceBulkCircuits.from_csv(
+            logger=StandardCircuit(), overwrite=False, filename=csv_test_filename, circuit_num=1
+        )
+        with self.assertLogs("netbox.scripts.scripts.nice_circuit_scripts.StandardCircuit", level="INFO") as logs:
             _ = circuits[0].create()
 
         # Correct Logs
-        self.assertTrue(any("Saved Circuit:" in  log for log in logs.output))
+        self.assertTrue(any("Saved Circuit:" in log for log in logs.output))
         term_count = sum(log.count("Saved Termination") for log in logs.output)
         cable_count = sum(log.count("Saved Cable:") for log in logs.output)
         self.assertEqual(term_count, 2)
@@ -379,7 +418,9 @@ class CircuitAdderTestCase(TestCase):
         device.save()
 
         csv_test_filename = "local/tests/test_bulk_circuits.csv"
-        circuits = NiceBulkCircuits.from_csv(logger=StandardCircuit(), overwrite=False, filename=csv_test_filename, circuit_num=3)
+        circuits = NiceBulkCircuits.from_csv(
+            logger=StandardCircuit(), overwrite=False, filename=csv_test_filename, circuit_num=3
+        )
 
         with self.assertLogs(
             "netbox.scripts.scripts.nice_circuit_scripts.StandardCircuit", level="INFO"
@@ -387,7 +428,7 @@ class CircuitAdderTestCase(TestCase):
             _ = circuits[0].create()
 
         # Correct Logs
-        self.assertTrue(any("Saved Circuit:" in  log for log in logs.output))
+        self.assertTrue(any("Saved Circuit:" in log for log in logs.output))
         term_count = sum(log.count("Saved Termination") for log in logs.output)
         cable_count = sum(log.count("Saved Cable:") for log in logs.output)
         self.assertEqual(term_count, 2)
@@ -399,14 +440,16 @@ class CircuitAdderTestCase(TestCase):
 
     def test_p2p_direct_to_device(self):
         csv_test_filename = "local/tests/test_bulk_circuits.csv"
-        circuits = NiceBulkCircuits.from_csv(logger=StandardCircuit(), overwrite=False, filename=csv_test_filename, circuit_num=5)
+        circuits = NiceBulkCircuits.from_csv(
+            logger=StandardCircuit(), overwrite=False, filename=csv_test_filename, circuit_num=5
+        )
         with self.assertLogs(
             "netbox.scripts.scripts.nice_circuit_scripts.StandardCircuit", level="INFO"
         ) as logs:  # LogLevelChoices.LOG_SUCCESS
             _ = circuits[0].create()
 
         # Correct Logs
-        self.assertTrue(any("Saved Circuit:" in  log for log in logs.output))
+        self.assertTrue(any("Saved Circuit:" in log for log in logs.output))
         term_count = sum(log.count("Saved Termination") for log in logs.output)
         term_a_count = sum(log.count("Termination Z") for log in logs.output)
         term_z_count = sum(log.count("Termination Z") for log in logs.output)
@@ -437,7 +480,9 @@ class CircuitAdderTestCase(TestCase):
         device2.save()
 
         csv_test_filename = "local/tests/test_bulk_circuits.csv"
-        circuits = NiceBulkCircuits.from_csv(logger=StandardCircuit(), overwrite=False, filename=csv_test_filename, circuit_num=6)
+        circuits = NiceBulkCircuits.from_csv(
+            logger=StandardCircuit(), overwrite=False, filename=csv_test_filename, circuit_num=6
+        )
 
         with self.assertLogs(
             "netbox.scripts.scripts.nice_circuit_scripts.StandardCircuit", level="INFO"
@@ -445,7 +490,7 @@ class CircuitAdderTestCase(TestCase):
             _ = circuits[0].create()
 
         # Correct Logs
-        self.assertTrue(any("Saved Circuit:" in  log for log in logs.output))
+        self.assertTrue(any("Saved Circuit:" in log for log in logs.output))
         term_count = sum(log.count("Saved Termination") for log in logs.output)
         term_a_count = sum(log.count("Termination A") for log in logs.output)
         term_z_count = sum(log.count("Termination Z") for log in logs.output)
@@ -470,7 +515,9 @@ class CircuitAdderTestCase(TestCase):
         device.save()
 
         csv_test_filename = "local/tests/test_bulk_circuits.csv"
-        circuits = NiceBulkCircuits.from_csv(logger=StandardCircuit(), overwrite=False, filename=csv_test_filename, circuit_num=7)
+        circuits = NiceBulkCircuits.from_csv(
+            logger=StandardCircuit(), overwrite=False, filename=csv_test_filename, circuit_num=7
+        )
 
         with self.assertLogs(
             "netbox.scripts.scripts.nice_circuit_scripts.StandardCircuit", level="INFO"
@@ -478,7 +525,7 @@ class CircuitAdderTestCase(TestCase):
             _ = circuits[0].create()
 
         # Correct Logs
-        self.assertTrue(any("Saved Circuit:" in  log for log in logs.output))
+        self.assertTrue(any("Saved Circuit:" in log for log in logs.output))
         term_count = sum(log.count("Saved Termination") for log in logs.output)
         self.assertEqual(sum(log.count("Created RearPort Rear7") for log in logs.output), 1)
         self.assertEqual(sum(log.count("Created FrontPort Front7") for log in logs.output), 1)
@@ -497,15 +544,17 @@ class CircuitAdderTestCase(TestCase):
     ## WARNINGS
     def test_bulk_circuit_2_overwrite_circuit(self):
         csv_test_filename = "local/tests/test_bulk_circuits.csv"
-        circuits = NiceBulkCircuits.from_csv(logger=StandardCircuit(), overwrite=True, filename=csv_test_filename, circuit_num=2)
+        circuits = NiceBulkCircuits.from_csv(
+            logger=StandardCircuit(), overwrite=True, filename=csv_test_filename, circuit_num=2
+        )
         with self.assertLogs(
             "netbox.scripts.scripts.nice_circuit_scripts.StandardCircuit", level="INFO"
         ) as logs:  # LogLevelChoices.LOG_SUCCESS
             _ = circuits[0].create()
 
         # Correct Logs
-        self.assertTrue(any("updating existing circuit!" in  log for log in logs.output))
-        self.assertTrue(any("Saved Circuit:" in  log for log in logs.output))
+        self.assertTrue(any("updating existing circuit!" in log for log in logs.output))
+        self.assertTrue(any("Saved Circuit:" in log for log in logs.output))
         term_count = sum(log.count("Saved Termination") for log in logs.output)
         cable_count = sum(log.count("Saved Cable:") for log in logs.output)
         self.assertEqual(term_count, 2)
@@ -515,5 +564,6 @@ class CircuitAdderTestCase(TestCase):
         # New Date (actually overwritten)
         c = Circuit.objects.get(cid="Circuit 1")
         import dateutil.parser as dp
+
         date = dp.parse("1999-09-09").date()
         self.assertEqual(c.install_date, date)

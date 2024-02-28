@@ -76,7 +76,15 @@ class NiceCircuit:
         """
         Used to prepare netbox objects, if loaded from a CSV originally
         """
-        for field in ["direct_to_device", "z_direct_to_device", "allow_skip", "review", "overwrite", "create_pp_port", "z_create_pp_port"]:
+        for field in [
+            "direct_to_device",
+            "z_direct_to_device",
+            "allow_skip",
+            "review",
+            "overwrite",
+            "create_pp_port",
+            "z_create_pp_port",
+        ]:
             value = getattr(self, field)
             setattr(self, field, utils.fix_bools(value))
         self.cir = self.cir or 0
@@ -91,7 +99,9 @@ class NiceCircuit:
         self.interface = utils.get_interface_by_name(name=self.interface, device=self.device)
         self.pp = utils.get_device_by_name(name=self.pp, site=self.side_a_site)
         self.pp_port = utils.get_rearport_by_name(name=self.pp_port, device=self.pp)
-        self.pp_new_port = utils.validate_pp_new_port(port_num=self.pp_new_port, logger=self.logger, skip=self.allow_skip)
+        self.pp_new_port = utils.validate_pp_new_port(
+            port_num=self.pp_new_port, logger=self.logger, skip=self.allow_skip
+        )
         self.install_date = utils.validate_date(self.install_date)
 
         # P2P
@@ -99,7 +109,9 @@ class NiceCircuit:
         self.z_interface = utils.get_interface_by_name(name=self.z_interface, device=self.z_device)
         self.z_pp = utils.get_device_by_name(name=self.z_pp, site=self.side_z_site)
         self.z_pp_port = utils.get_rearport_by_name(name=self.z_pp_port, device=self.z_pp)
-        self.z_pp_new_port = utils.validate_pp_new_port(port_num=self.z_pp_new_port, logger=self.logger, skip=self.allow_skip)
+        self.z_pp_new_port = utils.validate_pp_new_port(
+            port_num=self.z_pp_new_port, logger=self.logger, skip=self.allow_skip
+        )
 
     def create_new_pp_port(self, pp: Device, port_num: int, description: str) -> None:
         error = False
@@ -116,16 +128,16 @@ class NiceCircuit:
         if error:
             utils.handle_errors(self.logger.log_failure, error, self.allow_skip)
 
-    #     handle better: 
-	# ationError(errors)
-	# django.core.exceptions.ValidationError: {'device': ['This field cannot be nullr
-	# move create_rearport into class, less vars, handle error if no pp
+        #     handle better:
+        # ationError(errors)
+        # django.core.exceptions.ValidationError: {'device': ['This field cannot be nullr
+        # move create_rearport into class, less vars, handle error if no pp
         pp_rearport = utils.create_rearport(
             name=f"Rear{port_num}", type=self.pp_port_type, pp=pp, description=description
         )
         if not pp_rearport:
             return
-        
+
         utils.save_rearport(self.logger, pp_rearport)
 
         pp_frontport = utils.create_frontport(
@@ -133,9 +145,11 @@ class NiceCircuit:
         )
         if not pp_frontport:
             return
-        
+
         utils.save_frontport(self.logger, pp_frontport)
-        utils.create_extra_pp_ports(port_num=port_num, type=self.pp_port_type, pp=pp, logger=self.logger, allow_skip=self.allow_skip)
+        utils.create_extra_pp_ports(
+            port_num=port_num, type=self.pp_port_type, pp=pp, logger=self.logger, allow_skip=self.allow_skip
+        )
 
         return pp_rearport
 
