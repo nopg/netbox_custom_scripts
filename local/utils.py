@@ -1,23 +1,26 @@
-import csv
 import codecs
-import dateutil.parser as date_parser
-from dateutil.parser import ParserError
-
-from django.core.exceptions import ValidationError
-from extras.scripts import Script
-
-from circuits.choices import CircuitStatusChoices
-from circuits.models import Circuit, CircuitType, Provider, ProviderNetwork, CircuitTermination
-from dcim.choices import CableTypeChoices, PortTypeChoices
-from dcim.models import Cable, Device, FrontPort, Interface, RearPort, Site
-from utilities.choices import ColorChoices
-from utilities.exceptions import AbortScript
-
-from local.display_fields import HEADER_MAPPING
-from local.validators import MyCircuitValidator
+import csv
 import re
 
+import dateutil.parser as date_parser
+from circuits.choices import CircuitStatusChoices
+from circuits.models import (
+    Circuit,
+    CircuitTermination,
+    CircuitType,
+    Provider,
+    ProviderNetwork,
+)
+from dateutil.parser import ParserError
+from dcim.choices import CableTypeChoices, PortTypeChoices
+from dcim.models import Cable, Device, FrontPort, Interface, RearPort, Site
+from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import InMemoryUploadedFile
+from extras.scripts import Script
+from local.display_fields import HEADER_MAPPING
+from local.validators import MyCircuitValidator
+from utilities.choices import ColorChoices
+from utilities.exceptions import AbortScript
 
 BULK_SCRIPT_ALLOWED_USERS = ["netbox", "danny.berman", "joe.deweese", "loran.fuchs"]
 
@@ -40,11 +43,13 @@ def generate_range(input_string):
 
     return start_str, end_str
 
+
 def is_four_digit_numeric(string):
     # Define a regular expression pattern to match exactly 4 digits
     pattern = r'^\d{4}$'
     # Use the match function to check if the string matches the pattern
     return bool(re.match(pattern, string))
+
 
 def get_bun_link(bun: str) -> str:
     if not is_four_digit_numeric(bun):
@@ -53,7 +58,6 @@ def get_bun_link(bun: str) -> str:
     start, end = generate_range(bun)
     print(start, '-', end)
     return
-    
 
 
 def handle_errors(logger: Script, error: str, skip: bool = False):
@@ -96,13 +100,13 @@ def validate_user(user) -> bool:
 def validate_pp_new_port(port_num: str, logger, skip):
     if not port_num:
         return ""
-    
+
     if not port_num.isnumeric():
         handle_errors(logger.log_failure, error=f"Invalid value for new Patch Panel Port: {port_num}", skip=skip)
 
     if int(port_num) > 48:
         handle_errors(logger.log_failure, error=f"New Patch Panel Port must be below 48: {port_num}", skip=skip)
-    
+
     return int(port_num)
 
 
@@ -183,7 +187,7 @@ def load_data_from_csv(filename) -> list[dict]:
     else:
         csv_file = filename
 
-    circuits_csv = csv.DictReader(codecs.iterdecode(csv_file, "utf-8-sig"))    
+    circuits_csv = csv.DictReader(codecs.iterdecode(csv_file, "utf-8-sig"))
 
     csv_data = []
     for row in circuits_csv:

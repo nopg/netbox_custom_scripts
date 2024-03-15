@@ -1,15 +1,19 @@
 from dataclasses import dataclass
 
-from django.core.files.uploadedfile import InMemoryUploadedFile
-
+import local.utils as utils
 from circuits.choices import CircuitStatusChoices
-from circuits.models import Circuit, CircuitTermination, CircuitType, Provider, ProviderNetwork
+from circuits.models import (
+    Circuit,
+    CircuitTermination,
+    CircuitType,
+    Provider,
+    ProviderNetwork,
+)
 from dcim.choices import CableTypeChoices, PortTypeChoices
 from dcim.models import Cable, Device, FrontPort, Interface, RearPort, Site
+from django.core.files.uploadedfile import InMemoryUploadedFile
 from extras.scripts import Script
 from utilities.exceptions import AbortScript
-
-import local.utils as utils
 
 
 @dataclass

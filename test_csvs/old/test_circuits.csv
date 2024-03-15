@@ -1,3 +1,0 @@
-Circuit ID,Provider,Type,Side A,Side Z,Description,Date installed,Commit rate (Kbps),Comments,Contacts,Tags
-myid1,Equinix,DIA,,,mydesc1,,10485760,,,
-myid2,Equinix,DIA,,,mydesc2,,1000000,,,

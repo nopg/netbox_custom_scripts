@@ -25,7 +25,7 @@ from extras.scripts import Script
 from scripts.nice_circuit_scripts import BulkCircuits, StandardCircuit
 import os
 from local.utils import *
-from local.nice import NiceBulkCircuits, NiceCircuit, NiceStandardCircuit
+from local.nice_circuits import NiceBulkCircuits, NiceCircuit, NiceStandardCircuit
 
 
 class CircuitAdderTestCase(TestCase):

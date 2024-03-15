@@ -1,7 +1,7 @@
 # /admin: custom_validators = {'circuits.circuit': ['local.validators.MyValidator']}
 
-from extras.validators import CustomValidator
 from circuits.models import Circuit
+from extras.validators import CustomValidator
 
 
 class MyCircuitValidator(CustomValidator):

@@ -1,7 +1,6 @@
 from circuits.models import Circuit
 from dcim.models import Device
 from extras.reports import Report
-
 from local.validators import MyCircuitValidator
 
 
@@ -41,7 +40,12 @@ class DeviceSNReport(Report):
     def test_device_missing_sn(self):
         for device in Device.objects.all():
             if not device.serial:
-                self.log_info(device, "Missing Serial Number")
+                if (
+                    not "PDU" in device.name.upper()
+                    and not "panel" in device.name.lower()
+                    and not "cable mgmt" in device.name.lower()
+                ):
+                    self.log_info(device, "Missing Serial Number")
 
 
 name = "Circuit Validation Report"

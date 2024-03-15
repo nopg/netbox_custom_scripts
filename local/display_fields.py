@@ -1,6 +1,13 @@
 from circuits.models import CircuitType, Provider, ProviderNetwork
 from dcim.models import Device, Interface, RearPort, Site
-from extras.scripts import BooleanVar, FileVar, IntegerVar, ObjectVar, StringVar, TextVar
+from extras.scripts import (
+    BooleanVar,
+    FileVar,
+    IntegerVar,
+    ObjectVar,
+    StringVar,
+    TextVar,
+)
 
 YYYY_MM_DD = r"^\d{4}-([0]\d|1[0-2])-([0-2]\d|3[01])$"
 

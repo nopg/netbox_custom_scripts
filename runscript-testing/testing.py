@@ -7,7 +7,7 @@ from dcim.models import Cable, Device, RearPort, FrontPort, Interface, RearPortT
 from utilities.exceptions import AbortScript
 
 from local import utils
-from local.nice import NiceBulkCircuits, NiceStandardCircuit
+from local.nice_circuits import NiceBulkCircuits, NiceStandardCircuit
 
 
 def ct_checks(self):
@@ -222,6 +222,29 @@ def my_bun_tester():
 		print(i)
 		utils.get_bun_link(str(i))
 
+import openpyxl
+from openpyxl.utils.exceptions import InvalidFileException
+from openpyxl.workbook.workbook import Workbook
+
+def load_excel(filename: str) -> openpyxl.workbook.workbook.Workbook:
+    try:
+        tmp = openpyxl.load_workbook(filename)  # , read_only=True)
+    except InvalidFileException as error:
+        print(error)
+        sys.exit()
+
+    return tmp
+
+def my_xlsx_test():
+	excel_filename = "Requirements.xlsx"
+	_ = load_excel(excel_filename)
+	worksheet: Workbook = _.active
+
+	# Get headers and put into dict so that sheet["headername"] = "column_letter"
+	self.col_dict = {}
+	for col in self.worksheet.iter_cols(1, self.worksheet.max_column):
+		self.col_dict[col[0].value.upper()] = col[0].column_letter
+
 class Test(Script):
 	class Meta:
 		name = "misc tests"
@@ -237,8 +260,8 @@ class Test(Script):
 		#term_descrs()
 		#pp_port_descrs()
 		#my_test1(self)
-		
-		my_test_bulk(logger=self)
+		my_xlsx_test()
+		#my_test_bulk(logger=self)
 		#my_p2p_tests(self)
 		#my_pp_updater_tests(self)
 		#my_pp_creator(self)

@@ -2,11 +2,19 @@ from circuits.choices import CircuitStatusChoices
 from circuits.models import CircuitType, Provider, ProviderNetwork
 from dcim.choices import CableTypeChoices
 from dcim.models import Cable, Device, FrontPort, Interface, RearPort, Site
-from extras.scripts import BooleanVar, ChoiceVar, FileVar, IntegerVar, ObjectVar, Script, StringVar, TextVar
+from extras.scripts import (
+    BooleanVar,
+    ChoiceVar,
+    FileVar,
+    IntegerVar,
+    ObjectVar,
+    Script,
+    StringVar,
+    TextVar,
+)
+from local.nice_circuits import NiceBulkCircuits, NiceP2PCircuit, NiceStandardCircuit
+from local.utils import pp_port_update, validate_user
 from utilities.exceptions import AbortScript
-
-from local.utils import validate_user, pp_port_update
-from local.nice import NiceBulkCircuits, NiceStandardCircuit, NiceP2PCircuit
 
 
 class StandardCircuit(Script):
@@ -57,19 +65,29 @@ class StandardCircuit(Script):
         )
 
     # Display Fields
-    from local.display_fields import cid, description, provider, circuit_type, side_a_site, side_z_providernetwork
     from local.display_fields import (
-        pp,
-        pp_port,
-        pp_new_port,
-        pp_info,
-        xconnect_id,
-        device,
-        interface,
-        direct_to_device,
+        cid,
+        cir,
+        circuit_type,
+        comments,
         create_pp_port,
+        description,
+        device,
+        direct_to_device,
+        install_date,
+        interface,
+        port_speed,
+        pp,
+        pp_info,
+        pp_new_port,
+        pp_port,
+        provider,
+        review,
+        side_a_site,
+        side_z_providernetwork,
+        upstream_speed,
+        xconnect_id,
     )
-    from local.display_fields import port_speed, upstream_speed, cir, install_date, review, comments
 
     # Add StandardCircuit
     def run(self, data, commit):
@@ -139,30 +157,38 @@ class P2PCircuit(Script):
         )
 
     # Display Fields
-    from local.display_fields import cid, description, provider, circuit_type, side_a_site, side_z_site
     from local.display_fields import (
+        cid,
+        cir,
+        circuit_type,
+        comments,
+        create_pp_port,
+        description,
+        device,
+        direct_to_device,
+        install_date,
+        interface,
+        port_speed,
         pp,
-        pp_port,
         pp_info,
         pp_new_port,
+        pp_port,
+        provider,
+        review,
+        side_a_site,
+        side_z_site,
+        upstream_speed,
         xconnect_id,
-        device,
-        interface,
-        direct_to_device,
-        create_pp_port,
-    )
-    from local.display_fields import (
-        z_pp,
-        z_pp_port,
-        z_pp_new_port,
-        z_pp_info,
-        z_xconnect_id,
-        z_device,
-        z_interface,
-        z_direct_to_device,
         z_create_pp_port,
+        z_device,
+        z_direct_to_device,
+        z_interface,
+        z_pp,
+        z_pp_info,
+        z_pp_new_port,
+        z_pp_port,
+        z_xconnect_id,
     )
-    from local.display_fields import port_speed, upstream_speed, cir, install_date, review, comments
 
     # Add P2PCircuit
     def run(self, data, commit):
