@@ -3,7 +3,7 @@ Circuit 21,Standard Circuit,Provider 1,Circuit-Type Missing,"Missing Circuit Typ
 Circuit 22,Standard Circuit,Provider Missing,Circuit-Type 3,"Missing Provider, AbortScript",Site 3,Provider-Network 1,,,,Device 3,,,,,2/20/21,55,,,,,,,,TRUE,,
 ,Standard Circuit,Provider 1,Circuit-Type 3,"Missing CID, AbortScript",Site 3,Provider-Network 1,,,,Device 3,,,,,2/20/21,55,,,,,,,,TRUE,,
 Circuit 1,Standard Circuit,Provider 1,Circuit-Type 3,"Duplicate, Overwrites False",Site 1,Provider-Network 1,Patch Panel 1,Rear 1,,Device 1,Interface 1,,,,2/20/21,,,,,,,,,TRUE,,
-Circuit 23,Standard Circuit,Provider 1,Circuit-Type 1,Device Missing,Site 1,Provider-Network 1,,,,Missing Device,Interface 1,FALSE,,,2/20/21,,,,,,,,FALSE,FALSE,TRUE,TRUE
+Circuit 23,Standard Circuit,Provider 1,Circuit-Type 1,Device Missing,Site 1,Provider-Network 1,,,,Missing Device,Interface 1,TRUE,,,2/20/21,,,,,,,,FALSE,FALSE,TRUE,TRUE
 Circuit 25,Standard Circuit,Provider 1,Circuit-Type 1,Patch Panel Missing,Site 1,Provider-Network 1,,,,Device 1,Interface 2,FALSE,,,2/1/21,,,,,,,,FALSE,TRUE,,
 Circuit 26,P2P Circuit,Provider 1,Circuit-Type 1,Missing Z Site,Site 1,Provider-Network 1,Patch Panel 1,Rear 1,,Device 1,Interface 1,TRUE,,,8/8/88,10485760,,,,,,,FALSE,TRUE,,
 Circuit 26,Standard Circuit,Provider 1,Circuit-Type 1,Extra Patch Panel,Site 1,Provider-Network 1,Patch Panel 1,Rear 1,,Device 1,Interface 1,TRUE,,,8/8/88,10485760,,,,,,,FALSE,TRUE,,

@@ -18,6 +18,7 @@ from utilities.exceptions import AbortScript
 
 @dataclass
 class NiceCircuit:
+    """Parent/Main dataclass representing a circuit in netbox with cabling details"""
     logger: Script
     # Circuit
     cid: str
@@ -65,21 +66,26 @@ class NiceCircuit:
     pp_port_type: RearPort = PortTypeChoices.TYPE_LC
     z_pp_port_type: RearPort = PortTypeChoices.TYPE_LC
 
-    def __post_init__(self):
+
+    def __post_init__(self) -> None:
+        """Validate/Set initial data properly"""
         if self.from_csv:
             self._prepare_circuit_from_csv()
         self._validate_data()
         self._set_custom_fields()
 
-    def _set_custom_fields(self):
+    def _set_custom_fields(self) -> None:
+        """Set the custom fields in netbox format on this object"""
         self.custom_fields = {
             "review": self.review,
         }
 
     def _prepare_circuit_from_csv(self) -> None:
         """
-        Used to prepare netbox objects, if loaded from a CSV originally
+        Used to prepare the required data as netbox objects, if it was initially loaded from a CSV
         """
+
+        # Fix bools
         for field in [
             "direct_to_device",
             "z_direct_to_device",
@@ -91,6 +97,7 @@ class NiceCircuit:
         ]:
             value = getattr(self, field)
             setattr(self, field, utils.fix_bools(value))
+        
         self.cir = self.cir or 0
         self.port_speed = self.port_speed or 0
         self.upstream_speed = self.upstream_speed or 0
@@ -118,6 +125,14 @@ class NiceCircuit:
         )
 
     def create_new_pp_port(self, pp: Device, port_num: int, description: str) -> None:
+        """
+        Create a new Patch Panel Port (Rear & Front)
+
+        Args:
+            pp: netbox Device
+            port_num: Integer for the new port number
+            descriptin: description
+        """
         error = False
 
         rps = RearPort.objects.filter(device=pp)
@@ -132,10 +147,7 @@ class NiceCircuit:
         if error:
             utils.handle_errors(self.logger.log_failure, error, self.allow_skip)
 
-        #     handle better:
-        # ationError(errors)
-        # django.core.exceptions.ValidationError: {'device': ['This field cannot be nullr
-        # move create_rearport into class, less vars, handle error if no pp
+        # refactor all this into self?
         pp_rearport = utils.create_rearport(
             name=f"Rear{port_num}", type=self.pp_port_type, pp=pp, description=description
         )
@@ -156,19 +168,6 @@ class NiceCircuit:
         )
 
         return pp_rearport
-
-    def _validate_mandatory_values(self) -> None:
-        if not all([self.cid, self.provider, self.circuit_type]):
-            error = (
-                f"Missing/Not Found Mandatory Value for either: Circuit ID ({self.cid}), "
-                f"Provider ({self.provider}), or Circuit Type ({self.circuit_type})"
-            )
-            raise AbortScript(error)
-
-    def _validate_sites(self) -> None:
-        if self.side_a_site == self.side_z_site:
-            error = f"Cannot terminate {self.side_a_site} to {self.side_z_site}"
-            raise AbortScript(error)
 
     def _init_patch_panel_properties(self) -> None:
         """
@@ -194,7 +193,7 @@ class NiceCircuit:
             self.z_pp_port = self.create_new_pp_port(self.z_pp, self.z_pp_new_port, self.z_pp_port_description)
 
         valid = self._validate_x_cables(
-            self.pp, self.pp_port, self.device, self.interface, self.direct_to_device, self.pp_port_description
+            self.pp, self.pp_port, self.pp_port_description, self.device, self.interface, self.direct_to_device,
         )
         if not valid:
             return
@@ -202,20 +201,40 @@ class NiceCircuit:
             valid = self._validate_x_cables(
                 self.z_pp,
                 self.z_pp_port,
+                self.z_pp_port_description,
                 self.z_device,
                 self.z_interface,
                 self.z_direct_to_device,
-                self.z_pp_port_description,
             )
             if not valid:
                 return
 
     def _validate_data(self) -> None:
-        self._validate_mandatory_values()
-        self._validate_sites()
-        # self._init_patch_panel_properties()
-
+        """ Validate things"""
+        # Validate we have enough information for a circuit
+        if not all([self.cid, self.provider, self.circuit_type]):
+            error = (
+                f"Missing/Not Found Mandatory Value for either: Circuit ID ({self.cid}), "
+                f"Provider ({self.provider}), or Circuit Type ({self.circuit_type})"
+            )
+            raise AbortScript(error)
+        
+        # Validate sites are unique
+        if self.side_a_site == self.side_z_site:
+            error = f"Cannot terminate {self.side_a_site} to {self.side_z_site}"
+            raise AbortScript(error)
+        
     def _build_site_termination(self, side: str, site: Site) -> CircuitTermination:
+        """
+        Builds the site Termination object and returns it (not yet created/saved to the DB)
+
+        Args:
+            side: A or Z
+            site: netbox Site object
+        
+        Returns:
+            A netbox CircuitTermination
+        """
         xconnect_id = self.xconnect_id if side == "A" else self.z_xconnect_id
         termination = None
         existing = self.circuit.terminations.all()
@@ -243,7 +262,17 @@ class NiceCircuit:
 
         return termination
 
-    def create_site_termination(self, side: str, site: Site):
+    def create_site_termination(self, side: str, site: Site) -> CircuitTermination:
+        """
+        Saves the site Termination to the netbox DB, and returns it
+
+        Args:
+            side: A or Z
+            site: netbox Site object
+        
+        Returns:
+            A netbox CircuitTermination
+        """
         if isinstance(site, Site):
             termination_x = self._build_site_termination(side, site)
 
@@ -261,6 +290,16 @@ class NiceCircuit:
         return termination_x
 
     def _build_provider_network_termination(self, side: str, provider_network: ProviderNetwork) -> CircuitTermination:
+        """
+        Builds the ProviderNetwork Termination object and returns it (not yet created/saved to the DB)
+
+        Args:
+            side: A or Z
+            provider_network: netbox ProviderNetwork object
+        
+        Returns:
+            A netbox CircuitTermination
+        """
         termination: CircuitTermination = None
         existing = self.circuit.terminations.all()
         if len(existing) > 0:
@@ -288,6 +327,16 @@ class NiceCircuit:
         return termination
 
     def create_provider_network_termination(self, side: str, provider_network: ProviderNetwork) -> CircuitTermination:
+        """
+        Saves the Provider Network Termination to the netbox DB, and returns it
+
+        Args:
+            side: A or Z
+            provider_network: netbox ProviderNetwork object
+        
+        Returns:
+            A netbox CircuitTermination
+        """
         if isinstance(provider_network, ProviderNetwork):
             termination_x = self._build_provider_network_termination(side, provider_network)
 
@@ -304,6 +353,9 @@ class NiceCircuit:
         return termination_x
 
     def _build_circuit(self) -> Circuit:
+        """
+        Builds the Circuit object and returns it (not yet created/saved to the db)
+        """
         return Circuit(
             cid=self.cid,
             provider=self.provider,
@@ -316,6 +368,7 @@ class NiceCircuit:
         )
 
     def _update_circuit(self, circuit: Circuit) -> Circuit:
+        """Update existing Circuit attributes"""
         circuit.type = self.circuit_type
         circuit.status = CircuitStatusChoices.STATUS_ACTIVE
         circuit.description = self.description
@@ -327,6 +380,12 @@ class NiceCircuit:
     def get_frontport(self, rear_port) -> FrontPort:
         """
         Get FrontPort associated with RearPort
+
+        Args:
+            rear_port: The RearPort
+        
+        Returns:
+            A netbox FrontPort object
         """
         if not isinstance(rear_port, RearPort):
             return None
@@ -339,13 +398,21 @@ class NiceCircuit:
         self,
         pp: Device,
         pp_port: RearPort,
+        pp_port_description: str,
         device: Device,
         interface: Interface,
         direct_to_device: bool,
-        pp_port_description: str,
     ) -> None:
         """
         Validate we have what is necessary to create the cables
+
+        Args:
+            pp: patch panel
+            pp_port: The patch panel RearPort
+            pp_port_description: Description for the Front/RearPorts
+            device: Typically a switch or router)
+            interface: The switch/router Interface
+            direct_to_device: bool on whether cable goes through a patch panel or not
         """
 
         valid = True
@@ -373,6 +440,18 @@ class NiceCircuit:
     def _build_device_x_cable(
         self, device: Device, interface: Interface, a_side: FrontPort | CircuitTermination, a_side_label: str
     ) -> Cable:
+        """
+        Builds a Cable from a Device and returns it (not yet created/saved to the db)
+
+        Args:
+            device: The device
+            interface: The device's Interface
+            a_side: The OTHER side of this cable, either a FrontPort or Circuit Termination
+            a_side_label: Label to describe this cable
+        
+        Returns:
+            A netbox Cable object
+        """
         if not device or not interface:
             error = f"CID '{self.cid}': Unable to create cable to the device for circuit: {self.cid}"
             utils.handle_errors(self.logger.log_failure, error, self.allow_skip)
@@ -386,7 +465,15 @@ class NiceCircuit:
 
     def _build_pp_x_cable(self, pp: Device, pp_port: RearPort, a_side: CircuitTermination):
         """
-        Build Patch Panel Cable
+        Builds a Cable from a Patch Panel and returns it (not yet created/saved to the db)
+
+        Args:
+            pp: The patch panel
+            pp_port: The patch panel's RearPort
+            a_side: The OTHER side of this cable, always a CircuitTermination
+        
+        Returns:
+            A netbox CircuitTermination objcet
         """
 
         if not pp or not pp_port:
@@ -410,7 +497,10 @@ class NiceCircuit:
         interface: Interface,
         termination: CircuitTermination,
         direct_to_device: bool,
-    ):
+    ) -> None:
+        """
+        Creates ands saves 'standard' cables for most circuit use cases
+        """
         if direct_to_device:
             pp_cable = None
             device_side_a = termination
@@ -452,8 +542,8 @@ class NiceCircuit:
         return circuit
 
 
-@dataclass
 class NiceBulkCircuits(NiceCircuit):
+    """Entry point for loading a CSV of bulk circuits to create NiceCircuit obects"""
 
     @classmethod
     def from_csv(cls, logger: Script, overwrite: bool = False, filename="", circuit_num: int = 0):

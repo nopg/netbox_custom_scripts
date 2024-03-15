@@ -1,16 +1,9 @@
-from circuits.choices import CircuitStatusChoices
-from circuits.models import CircuitType, Provider, ProviderNetwork
-from dcim.choices import CableTypeChoices
-from dcim.models import Cable, Device, FrontPort, Interface, RearPort, Site
+from dcim.models import Device, FrontPort, RearPort, Site
 from extras.scripts import (
     BooleanVar,
-    ChoiceVar,
-    FileVar,
-    IntegerVar,
     ObjectVar,
     Script,
     StringVar,
-    TextVar,
 )
 from local.nice_circuits import NiceBulkCircuits, NiceP2PCircuit, NiceStandardCircuit
 from local.utils import pp_port_update, validate_user
@@ -30,7 +23,7 @@ class StandardCircuit(Script):
         commit_default = False
         scheduling_enabled = False
 
-        # Organize the GUI Options
+        # Organize the GUI Layout
         fieldsets = (
             (
                 "Enter Circuit Information",
@@ -64,7 +57,6 @@ class StandardCircuit(Script):
             # ("Advanced Options", ("overwrite",)),
         )
 
-    # Display Fields
     from local.display_fields import (
         cid,
         cir,
@@ -97,9 +89,9 @@ class StandardCircuit(Script):
 
 class P2PCircuit(Script):
     """
-    Netbox Custom Script -- SingleCircuit
+    Netbox Custom Script -- P2PCircuit
 
-    This class provides the GUI Interface & Main Entry Point for a Single Circuit Import
+    This class provides the GUI Interface & Main Entry Point for a Single Point-to-Point Circuit Import
     """
 
     class Meta:
@@ -108,7 +100,7 @@ class P2PCircuit(Script):
         commit_default = False
         scheduling_enabled = False
 
-        # Organize the GUI Options
+        # Organize the GUI Layout
         fieldsets = (
             (
                 "Enter Circuit Information",
@@ -156,7 +148,6 @@ class P2PCircuit(Script):
             # ("Advanced Options", ("overwrite",)),
         )
 
-    # Display Fields
     from local.display_fields import (
         cid,
         cir,
@@ -209,18 +200,16 @@ class BulkCircuits(Script):
         commit_default = False
         scheduling_enabled = False
 
-        # Organize the GUI Options
+        # Organize the GUI Layout
         fieldsets = (
             ("Import CSV", ("bulk_circuits",)),
             ("Advanced Options", ("circuit_num", "overwrite")),
         )
 
-    # Display fields
     from local.display_fields import bulk_circuits, circuit_num, overwrite
 
     # Run BulkCircuits
     def run(self, data, commit):
-        # Check if this user is allowed to run Bulk Circuit updates
         allowed = validate_user(user=self.request.user)
         if not allowed:
             raise AbortScript(f"User '{self.request.user}' does not have permission to run this script.")
@@ -236,7 +225,7 @@ class UpdatePatchPanelPorts(Script):
     """
     Netbox Custom Script -- UpdatePatchPanelPorts
 
-    This class provides the GUI Interface & Main Entry Point for Updating Patch Panel Port Names
+    This class provides the GUI Interface & Main Entry Point for the Update Patch Panel Port Names Tool
     """
 
     class Meta:
@@ -245,7 +234,7 @@ class UpdatePatchPanelPorts(Script):
         commit_default = False
         scheduling_enabled = False
 
-        # Organize the GUI Options
+        # Organize the GUI Layout
         fieldsets = (
             ("Patch Panel", ("site", "pp", "pp_frontport", "pp_rearport")),
             ("Front Ports", ("old_frontport_name", "new_frontport_name")),
@@ -253,6 +242,7 @@ class UpdatePatchPanelPorts(Script):
             ("Other", ("revert_if_failed",)),
         )
 
+    # Unique, so not imported from local.display_fields
     site = ObjectVar(
         model=Site,
         description="Only used to help filter available patch panels",
@@ -292,7 +282,9 @@ class UpdatePatchPanelPorts(Script):
     )
     revert_if_failed = BooleanVar(label="Revert changes if any renames fail?", default=True, required=False)
 
+    # Update Patch Panel Port Names
     def run(self, data, commit):
+        # Remove unnecessary keys
         del data["pp_frontport"]
         del data["pp_rearport"]
         del data["site"]
