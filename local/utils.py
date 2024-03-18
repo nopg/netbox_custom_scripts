@@ -52,12 +52,25 @@ def is_four_digit_numeric(string):
 
 
 def get_bun_link(bun: str) -> str:
-    if not is_four_digit_numeric(bun):
-        print("nope")
-        return
-    start, end = generate_range(bun)
-    print(start, '-', end)
-    return
+    # Convert the input string to an integer
+    num = int(bun)
+
+    # Calculate the start and end values for the range
+    start = num - (num % 50) + 1
+    end = start + 49
+
+    # Ensure that the start and end values are within the valid range of 4-digit numbers
+    start = max(start, 1)
+    end = min(end, 9999)
+
+    # Pad the start and end strings with zeros to ensure they have the same length
+    start_str = str(start).zfill(4)
+    end_str = str(end).zfill(4)
+
+    from local.display_fields import customs
+
+    bun_link = f"{customs['bun_root_path']}\\{start_str} - {end_str}\\"
+    return bun_link
 
 
 def handle_errors(logger: Script, error: str, skip: bool = False):

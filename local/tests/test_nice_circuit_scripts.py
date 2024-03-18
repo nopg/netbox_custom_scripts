@@ -191,6 +191,16 @@ class CircuitAdderTestCase(TestCase):
         cf_review.save()
         cf_review.content_types.set([ContentType.objects.get_for_model(Circuit)])
 
+        cf_bun = CustomField(name="bun", type=CustomFieldTypeChoices.TYPE_TEXT)
+        cf_bun.full_clean()
+        cf_bun.save()
+        cf_bun.content_types.set([ContentType.objects.get_for_model(Circuit)])
+
+        cf_bun_link = CustomField(name="bun_link", type=CustomFieldTypeChoices.TYPE_TEXT)
+        cf_bun_link.full_clean()
+        cf_bun_link.save()
+        cf_bun_link.content_types.set([ContentType.objects.get_for_model(Circuit)])
+
     # Tests
     def test_get_provider_by_name(self):
         provider = get_provider_by_name("Provider 1")

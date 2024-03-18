@@ -19,10 +19,12 @@ from utilities.exceptions import AbortScript
 @dataclass
 class NiceCircuit:
     """Parent/Main dataclass representing a circuit in netbox with cabling details"""
+
     logger: Script
     # Circuit
     cid: str
     description: str
+    bun: str
     provider: Provider
     circuit_type: CircuitType
     side_a_site: Site
@@ -31,14 +33,14 @@ class NiceCircuit:
     # Cables (Side A)
     pp: Device
     pp_port: RearPort
-    pp_new_port: str  # IMPLEMENT
-    pp_port_description: str  # IMPLEMENT
+    pp_new_port: str
+    pp_port_description: str
     pp_info: str
     xconnect_id: str
     device: Device
     interface: Interface
     direct_to_device: bool
-    create_pp_port: bool  # IMPLEMENT
+    create_pp_port: bool
     # Other
     port_speed: int
     upstream_speed: int
@@ -49,23 +51,22 @@ class NiceCircuit:
     # Cables (Side Z)
     z_pp: Device
     z_pp_port: RearPort
-    z_pp_port_description: str  # IMPLEMENT
+    z_pp_port_description: str
     z_pp_new_port: bool
     z_pp_info: str
     z_xconnect_id: str
     z_device: Device
     z_interface: Interface
     z_direct_to_device: bool
-    z_create_pp_port: bool  # IMPLEMENT
+    z_create_pp_port: bool
     # Misc
     allow_skip: bool = False
     overwrite: bool = False
     from_csv: bool = False
 
-    # Not yet implemented / always defaulted to this
+    # For now - always defaulted to LC
     pp_port_type: RearPort = PortTypeChoices.TYPE_LC
     z_pp_port_type: RearPort = PortTypeChoices.TYPE_LC
-
 
     def __post_init__(self) -> None:
         """Validate/Set initial data properly"""
@@ -77,6 +78,9 @@ class NiceCircuit:
     def _set_custom_fields(self) -> None:
         """Set the custom fields in netbox format on this object"""
         self.custom_fields = {
+            "bun": self.bun,
+            # "bun_folder_range": utils.get_bun_link(self.bun),
+            "bun_link": utils.get_bun_link(self.bun) if self.bun else "",
             "review": self.review,
         }
 
@@ -97,7 +101,8 @@ class NiceCircuit:
         ]:
             value = getattr(self, field)
             setattr(self, field, utils.fix_bools(value))
-        
+
+        self.bun = self.bun if utils.is_four_digit_numeric(self.bun) else ""
         self.cir = self.cir or 0
         self.port_speed = self.port_speed or 0
         self.upstream_speed = self.upstream_speed or 0
@@ -193,7 +198,12 @@ class NiceCircuit:
             self.z_pp_port = self.create_new_pp_port(self.z_pp, self.z_pp_new_port, self.z_pp_port_description)
 
         valid = self._validate_x_cables(
-            self.pp, self.pp_port, self.pp_port_description, self.device, self.interface, self.direct_to_device,
+            self.pp,
+            self.pp_port,
+            self.pp_port_description,
+            self.device,
+            self.interface,
+            self.direct_to_device,
         )
         if not valid:
             return
@@ -210,7 +220,7 @@ class NiceCircuit:
                 return
 
     def _validate_data(self) -> None:
-        """ Validate things"""
+        """Validate things"""
         # Validate we have enough information for a circuit
         if not all([self.cid, self.provider, self.circuit_type]):
             error = (
@@ -218,12 +228,12 @@ class NiceCircuit:
                 f"Provider ({self.provider}), or Circuit Type ({self.circuit_type})"
             )
             raise AbortScript(error)
-        
+
         # Validate sites are unique
         if self.side_a_site == self.side_z_site:
             error = f"Cannot terminate {self.side_a_site} to {self.side_z_site}"
             raise AbortScript(error)
-        
+
     def _build_site_termination(self, side: str, site: Site) -> CircuitTermination:
         """
         Builds the site Termination object and returns it (not yet created/saved to the DB)
@@ -231,7 +241,7 @@ class NiceCircuit:
         Args:
             side: A or Z
             site: netbox Site object
-        
+
         Returns:
             A netbox CircuitTermination
         """
@@ -269,7 +279,7 @@ class NiceCircuit:
         Args:
             side: A or Z
             site: netbox Site object
-        
+
         Returns:
             A netbox CircuitTermination
         """
@@ -296,7 +306,7 @@ class NiceCircuit:
         Args:
             side: A or Z
             provider_network: netbox ProviderNetwork object
-        
+
         Returns:
             A netbox CircuitTermination
         """
@@ -333,7 +343,7 @@ class NiceCircuit:
         Args:
             side: A or Z
             provider_network: netbox ProviderNetwork object
-        
+
         Returns:
             A netbox CircuitTermination
         """
@@ -383,7 +393,7 @@ class NiceCircuit:
 
         Args:
             rear_port: The RearPort
-        
+
         Returns:
             A netbox FrontPort object
         """
@@ -425,7 +435,7 @@ class NiceCircuit:
             )
         elif not direct_to_device and (pp is None or pp_port is None):
             error = f"\tCID '{self.cid}': Error: Patch Panel or port {pp}/{pp_port} missing, and 'Cable Direct to Device' is not checked."
-        # Temp? Update Description
+        # Update Description
         elif isinstance(pp, Device):
             if not pp_port.description and pp_port_description:
                 pp_port.description = pp_port_description
@@ -448,7 +458,7 @@ class NiceCircuit:
             interface: The device's Interface
             a_side: The OTHER side of this cable, either a FrontPort or Circuit Termination
             a_side_label: Label to describe this cable
-        
+
         Returns:
             A netbox Cable object
         """
@@ -471,7 +481,7 @@ class NiceCircuit:
             pp: The patch panel
             pp_port: The patch panel's RearPort
             a_side: The OTHER side of this cable, always a CircuitTermination
-        
+
         Returns:
             A netbox CircuitTermination objcet
         """

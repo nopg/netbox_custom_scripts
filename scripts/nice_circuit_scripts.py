@@ -1,10 +1,5 @@
 from dcim.models import Device, FrontPort, RearPort, Site
-from extras.scripts import (
-    BooleanVar,
-    ObjectVar,
-    Script,
-    StringVar,
-)
+from extras.scripts import BooleanVar, ObjectVar, Script, StringVar
 from local.nice_circuits import NiceBulkCircuits, NiceP2PCircuit, NiceStandardCircuit
 from local.utils import pp_port_update, validate_user
 from utilities.exceptions import AbortScript
@@ -27,7 +22,7 @@ class StandardCircuit(Script):
         fieldsets = (
             (
                 "Enter Circuit Information",
-                ("cid", "description", "provider", "circuit_type", "side_a_site", "side_z_providernetwork"),
+                ("cid", "description", "bun", "provider", "circuit_type", "side_a_site", "side_z_providernetwork"),
             ),
             (
                 "Cables",
@@ -58,6 +53,7 @@ class StandardCircuit(Script):
         )
 
     from local.display_fields import (
+        bun,
         cid,
         cir,
         circuit_type,
@@ -104,7 +100,7 @@ class P2PCircuit(Script):
         fieldsets = (
             (
                 "Enter Circuit Information",
-                ("cid", "description", "provider", "circuit_type", "side_a_site", "side_z_site"),
+                ("cid", "description", "bun", "provider", "circuit_type", "side_a_site", "side_z_site"),
             ),
             (
                 "Cables Side A",
@@ -149,6 +145,7 @@ class P2PCircuit(Script):
         )
 
     from local.display_fields import (
+        bun,
         cid,
         cir,
         circuit_type,

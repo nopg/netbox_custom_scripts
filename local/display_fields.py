@@ -10,6 +10,7 @@ from extras.scripts import (
 )
 
 YYYY_MM_DD = r"^\d{4}-([0]\d|1[0-2])-([0-2]\d|3[01])$"
+DDDD = r'^\d{4}$'
 
 # Standard / All Circuits
 cid = StringVar(
@@ -18,6 +19,12 @@ cid = StringVar(
 )
 description = StringVar(
     label="Circuit Description",
+    required=False,
+)
+bun = StringVar(
+    label="BUN",
+    description="4 Digits",
+    regex=DDDD,
     required=False,
 )
 provider = ObjectVar(
@@ -165,6 +172,7 @@ HEADER_MAPPING = {
     # Circuit
     "Circuit ID": "cid",
     "Description": "description",
+    "BUN": "bun",
     "Provider": "provider",
     "Circuit Type": "circuit_type",
     "Side A Site": "side_a_site",
@@ -204,3 +212,6 @@ HEADER_MAPPING = {
     "Overwrite": "overwrite",
     "NICE Script Type": "nice_script_type",
 }
+
+# Custom variables that should maybe be kept private (update these per install)
+customs = {"bun_root_path": "X:\\My Test\Path"}

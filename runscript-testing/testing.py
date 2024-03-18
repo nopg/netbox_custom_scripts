@@ -235,15 +235,15 @@ def load_excel(filename: str) -> openpyxl.workbook.workbook.Workbook:
 
     return tmp
 
-def my_xlsx_test():
-	excel_filename = "Requirements.xlsx"
-	_ = load_excel(excel_filename)
-	worksheet: Workbook = _.active
+# def my_xlsx_test():
+# 	excel_filename = "Requirements.xlsx"
+# 	_ = load_excel(excel_filename)
+# 	worksheet: Workbook = _.active
 
-	# Get headers and put into dict so that sheet["headername"] = "column_letter"
-	self.col_dict = {}
-	for col in self.worksheet.iter_cols(1, self.worksheet.max_column):
-		self.col_dict[col[0].value.upper()] = col[0].column_letter
+# 	# Get headers and put into dict so that sheet["headername"] = "column_letter"
+# 	self.col_dict = {}
+# 	for col in self.worksheet.iter_cols(1, self.worksheet.max_column):
+# 		self.col_dict[col[0].value.upper()] = col[0].column_letter
 
 class Test(Script):
 	class Meta:
@@ -255,12 +255,12 @@ class Test(Script):
 		#ct_checks(self)
 		#cable_checks()
 		#term_types() 
-		#rear_front_portnames()
+		rear_front_portnames()
 		#pp_info()
 		#term_descrs()
 		#pp_port_descrs()
 		#my_test1(self)
-		my_xlsx_test()
+		#my_xlsx_test()
 		#my_test_bulk(logger=self)
 		#my_p2p_tests(self)
 		#my_pp_updater_tests(self)
