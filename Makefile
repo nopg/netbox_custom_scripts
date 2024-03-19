@@ -10,14 +10,14 @@ pull:
 	scp nicnb:/opt/netbox/netbox/scripts/testing.py ./runscript-testing/
 
 push_csv_tests:
-	scp test_csvs/test_bulk_circuits.csv nicnb:/opt/netbox/netbox/local/tests/
-	scp test_csvs/test_bulk_circuits_fail.csv nicnb:/opt/netbox/netbox/local/tests/
+	scp ./local/tests/test_bulk_circuits.csv nicnb:/opt/netbox/netbox/local/tests/
+	scp ./local/test/test_bulk_circuits_fail.csv nicnb:/opt/netbox/netbox/local/tests/
 	scp runscript-testing/csv-runscript-circuits.csv nicnb:/opt/netbox/netbox/local/tests/
 
-initial_push:
+remember:
 	@echo "If you want to run 'make push': "
 	@echo "   .py files can be blank/empty before 'make push'"
-	@echo "   chmod 777 on all filenames in this repo (ignore __init__.py)"
+	@echo "   chown netbox on all filenames in this repo "
 	@echo " -------------------------------------------------------------"
 	@echo " YOU NEED THIS STRUCTURE ON NETBOX HOST: "
 	@echo "   /opt/netbox/netbox/local/__init__.py"
@@ -30,3 +30,7 @@ initial_push:
 	@echo "   /opt/netbox/netbox/local/utils.py"
 	@echo "   /opt/netbox/netbox/local/validators.py"
 	@echo " -------------------------------------------------------------"
+	@echo " Change to test config	export NETBOX_CONFIGURATION=netbox.configuration_testing "
+	@echo " Ensure db permissions	ALTER DATABASE netbox OWNER TO netbox; "
+	@echo " 			ALTER USER netbox CREATEDB; "
+	@echo " Run Test		./manage.py test local.tests --keepdb -v 2 "
