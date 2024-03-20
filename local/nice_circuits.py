@@ -205,8 +205,8 @@ class NiceCircuit:
             self.interface,
             self.direct_to_device,
         )
-        # if not valid:
-        #     return
+        if not valid:
+            return
         if isinstance(self, NiceP2PCircuit):
             valid = self._validate_x_cables(
                 self.z_pp,
@@ -216,8 +216,6 @@ class NiceCircuit:
                 self.z_interface,
                 self.z_direct_to_device,
             )
-            if not valid:
-                return
 
         return valid
 
