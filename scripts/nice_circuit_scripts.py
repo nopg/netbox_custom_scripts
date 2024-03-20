@@ -29,6 +29,7 @@ class StandardCircuit(Script):
                 (
                     "pp",
                     "pp_port",
+                    "pp_port_description",
                     "pp_new_port",
                     "pp_info",
                     "xconnect_id",
@@ -69,6 +70,7 @@ class StandardCircuit(Script):
         pp_info,
         pp_new_port,
         pp_port,
+        pp_port_description,
         provider,
         review,
         side_a_site,
@@ -80,7 +82,7 @@ class StandardCircuit(Script):
     # Add StandardCircuit
     def run(self, data, commit):
         circuit = NiceStandardCircuit(logger=self, **data)
-        circuit.create()
+        _ = circuit.create()
 
 
 class P2PCircuit(Script):
@@ -107,6 +109,7 @@ class P2PCircuit(Script):
                 (
                     "pp",
                     "pp_port",
+                    "pp_port_description",
                     "pp_new_port",
                     "pp_info",
                     "xconnect_id",
@@ -121,6 +124,7 @@ class P2PCircuit(Script):
                 (
                     "z_pp",
                     "z_pp_port",
+                    "z_pp_port_description",
                     "z_pp_new_port",
                     "z_pp_info",
                     "z_xconnect_id",
@@ -161,6 +165,7 @@ class P2PCircuit(Script):
         pp_info,
         pp_new_port,
         pp_port,
+        pp_port_description,
         provider,
         review,
         side_a_site,
@@ -175,13 +180,14 @@ class P2PCircuit(Script):
         z_pp_info,
         z_pp_new_port,
         z_pp_port,
+        z_pp_port_description,
         z_xconnect_id,
     )
 
     # Add P2PCircuit
     def run(self, data, commit):
         circuit = NiceP2PCircuit(logger=self, **data)
-        circuit.create()
+        _ = circuit.create()
 
 
 class BulkCircuits(Script):
@@ -214,8 +220,22 @@ class BulkCircuits(Script):
         circuits = NiceBulkCircuits.from_csv(
             logger=self, overwrite=data["overwrite"], filename=data["bulk_circuits"], circuit_num=data["circuit_num"]
         )
+        results = {}
         for circuit in circuits:
-            circuit.create()
+            result = circuit.create()
+            results[circuit.cid] = {"result": result, "description": circuit.description}
+
+        self.log_info("-----------------------------------------------------------------------")
+        self.log_info("Report of Success/Fail Circuit ID's:")
+        self.log_success("Successes: ")
+        for cid, result in results.items():
+            if result["result"]:
+                self.log_success(f"Circuit ID: {cid} - Description: {result['description']}")
+        self.log_failure("Failures: ")
+        for cid, result in results.items():
+            if not result["result"]:
+                self.log_failure(f"Circuit ID: {cid} - Description: {result['description']}")
+        self.log_info("-----------------------------------------------------------------------")
 
 
 class UpdatePatchPanelPorts(Script):

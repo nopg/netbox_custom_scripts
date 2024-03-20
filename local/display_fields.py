@@ -55,6 +55,7 @@ side_z_providernetwork = ObjectVar(
 # Cables Side A
 pp = ObjectVar(model=Device, label="Patch Panel", required=False, query_params={"site_id": "$side_a_site"})
 pp_port = ObjectVar(model=RearPort, label="Patch Panel Port", required=False, query_params={"device_id": "$pp"})
+pp_port_description = StringVar(label="Patch Panel Port Description", required=False)
 pp_new_port = IntegerVar(
     label="CREATE Patch Panel Port #:",
     description="Will be 'Front# and Back#, Enable creation via check box below.",
@@ -122,6 +123,7 @@ z_pp = ObjectVar(model=Device, label="Patch Panel Side Z", required=False, query
 z_pp_port = ObjectVar(
     model=RearPort, label="Patch Panel Port Side Z", required=False, query_params={"device_id": "$z_pp"}
 )
+z_pp_port_description = StringVar(label="Patch Panel Z Port Description", required=False)
 z_pp_new_port = IntegerVar(
     label="CREATE Patch Panel Z Port #:",
     description="Will be 'Front# and Back#, Enable creation via check box below.",
@@ -163,7 +165,7 @@ bulk_circuits = FileVar(
 )
 circuit_num = IntegerVar(label="Circuit/Line Number", required=False)
 overwrite = BooleanVar(
-    description="Overwrite existing circuits? (same Ciruit ID & Provider == Same Circuit)", default=False
+    description="Overwrite existing circuits? (same Circuit ID & Provider == Same Circuit)", default=False
 )
 
 

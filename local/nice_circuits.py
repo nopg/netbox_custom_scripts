@@ -28,7 +28,6 @@ class NiceCircuit:
     provider: Provider
     circuit_type: CircuitType
     side_a_site: Site
-    side_z_site: Site
     side_z_providernetwork: ProviderNetwork
     # Cables (Side A)
     pp: Device
@@ -49,16 +48,17 @@ class NiceCircuit:
     review: bool
     comments: str
     # Cables (Side Z)
-    z_pp: Device
-    z_pp_port: RearPort
-    z_pp_port_description: str
-    z_pp_new_port: bool
-    z_pp_info: str
-    z_xconnect_id: str
-    z_device: Device
-    z_interface: Interface
-    z_direct_to_device: bool
-    z_create_pp_port: bool
+    side_z_site: Site = None
+    z_pp: Device = None
+    z_pp_port: RearPort = None
+    z_pp_port_description: str = ""
+    z_pp_new_port: bool = False
+    z_pp_info: str = ""
+    z_xconnect_id: str = ""
+    z_device: Device = None
+    z_interface: Interface = None
+    z_direct_to_device: bool = None
+    z_create_pp_port: bool = None
     # Misc
     allow_skip: bool = False
     overwrite: bool = False
@@ -205,8 +205,8 @@ class NiceCircuit:
             self.interface,
             self.direct_to_device,
         )
-        if not valid:
-            return
+        # if not valid:
+        #     return
         if isinstance(self, NiceP2PCircuit):
             valid = self._validate_x_cables(
                 self.z_pp,
@@ -218,6 +218,8 @@ class NiceCircuit:
             )
             if not valid:
                 return
+
+        return valid
 
     def _validate_data(self) -> None:
         """Validate things"""
@@ -489,6 +491,7 @@ class NiceCircuit:
         if not pp or not pp_port:
             error = f"CID '{self.cid}': Unable to create cable to Patch Panel for circuit: {self.cid}"
             utils.handle_errors(self.logger.log_failure, error, self.allow_skip)
+            return
 
         label = f"{self.cid}: {pp}/{pp_port} <-> {a_side.site}"
 
@@ -521,6 +524,7 @@ class NiceCircuit:
             label = f"{self.pp}/{self.get_frontport(pp_port)}"
 
         device_cable = self._build_device_x_cable(device, interface, a_side=device_side_a, a_side_label=label)
+
         utils.save_cables(logger=self.logger, allow_skip=self.allow_skip, cables=[pp_cable, device_cable])
 
     def create_circuit(self) -> Circuit:
@@ -610,8 +614,10 @@ class NiceStandardCircuit(NiceCircuit):
         Standard Circuit Creation
         """
         self.logger.log_info(f"Beginning Standard {self.cid} / {self.description} creation..")
-        self.create_standard()
+        result = self.create_standard()
         self.logger.log_info(f"Finished {self.cid}.")
+
+        return result
 
     def create_standard(self, p2p: bool = False) -> None:
         self.circuit = super().create_circuit()
@@ -628,10 +634,14 @@ class NiceStandardCircuit(NiceCircuit):
         if not self.termination_z:
             return
 
-        super()._init_patch_panel_properties()
+        success = super()._init_patch_panel_properties()
+        if not success:
+            return
         super().create_standard_cables(
             self.pp, self.pp_port, self.device, self.interface, self.termination_a, self.direct_to_device
         )
+
+        return "success"
 
 
 @dataclass
@@ -645,9 +655,10 @@ class NiceP2PCircuit(NiceCircuit):
 
     def create(self):
         self.logger.log_info(f"Beginning P2P {self.cid} / {self.description} creation..")
-        # super().create_standard()
-        self.create_p2p()
+        result = self.create_p2p()
         self.logger.log_info(f"Finished {self.cid}.")
+
+        return result
 
     def create_p2p(self) -> None:
         self.circuit = super().create_circuit()
@@ -662,10 +673,14 @@ class NiceP2PCircuit(NiceCircuit):
         if not self.termination_z:
             return
 
-        super()._init_patch_panel_properties()
+        success = super()._init_patch_panel_properties()
+        if not success:
+            return
         super().create_standard_cables(
             self.pp, self.pp_port, self.device, self.interface, self.termination_a, self.direct_to_device
         )
         super().create_standard_cables(
             self.z_pp, self.z_pp_port, self.z_device, self.z_interface, self.termination_z, self.z_direct_to_device
         )
+
+        return "success"
