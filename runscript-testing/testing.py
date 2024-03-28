@@ -7,7 +7,7 @@ from dcim.models import Cable, Device, RearPort, FrontPort, Interface, RearPortT
 from utilities.exceptions import AbortScript
 
 from local import utils
-from local.nice_circuits import NiceBulkCircuits, NiceStandardCircuit
+from local.nice_circuits import NiceBulkCircuits, NiceStandardCircuit, NiceMeetMeCircuit
 
 
 def ct_checks(self):
@@ -177,6 +177,16 @@ def my_p2p_tests(logger):
 		else:
 			circuit.create()
 
+def my_mm_test(logger):
+	from rich.pretty import pprint
+	filename = "local/tests/csv-runscript-circuits.csv"
+	circuits = NiceBulkCircuits.from_csv(logger=logger, filename=filename, circuit_num=10)
+	pprint(circuits)
+
+	for circuit in circuits:
+		if isinstance(circuit, NiceMeetMeCircuit):
+			circuit.create()
+
 def	my_pp_updater_tests(logger: Script):
 	pp = Device.objects.get(name="mypatchpanel3")
 	data = {
@@ -255,7 +265,7 @@ class Test(Script):
 		#ct_checks(self)
 		#cable_checks()
 		#term_types() 
-		rear_front_portnames()
+		#rear_front_portnames()
 		#pp_info()
 		#term_descrs()
 		#pp_port_descrs()
@@ -266,4 +276,5 @@ class Test(Script):
 		#my_pp_updater_tests(self)
 		#my_pp_creator(self)
 		#my_bun_tester()
+		my_mm_test(self)
 

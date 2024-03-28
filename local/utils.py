@@ -22,7 +22,7 @@ from local.validators import MyCircuitValidator
 from utilities.choices import ColorChoices
 from utilities.exceptions import AbortScript
 
-BULK_SCRIPT_ALLOWED_USERS = ["netbox", "danny.berman", "joe.deweese", "loran.fuchs"]
+BULK_SCRIPT_ALLOWED_USERS = ["netbox", "danny.berman", "joe.deweese", "loran.fuchs", "taylor", "gustavo"]
 
 
 def generate_range(input_string):

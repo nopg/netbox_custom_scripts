@@ -11,7 +11,7 @@ pull:
 
 push_csv_tests:
 	scp ./local/tests/test_bulk_circuits.csv nicnb:/opt/netbox/netbox/local/tests/
-	scp ./local/test/test_bulk_circuits_fail.csv nicnb:/opt/netbox/netbox/local/tests/
+	scp ./local/tests/test_bulk_circuits_fail.csv nicnb:/opt/netbox/netbox/local/tests/
 	scp runscript-testing/csv-runscript-circuits.csv nicnb:/opt/netbox/netbox/local/tests/
 
 remember:

@@ -1,4 +1,5 @@
-from dataclasses import dataclass
+import inspect
+from dataclasses import dataclass, fields
 
 import local.utils as utils
 from circuits.choices import CircuitStatusChoices
@@ -47,31 +48,20 @@ class NiceCircuit:
     install_date: str
     review: bool
     comments: str
-    # Cables (Side Z)
-    side_z_site: Site = None
-    z_pp: Device = None
-    z_pp_port: RearPort = None
-    z_pp_port_description: str = ""
-    z_pp_new_port: bool = False
-    z_pp_info: str = ""
-    z_xconnect_id: str = ""
-    z_device: Device = None
-    z_interface: Interface = None
-    z_direct_to_device: bool = None
-    z_create_pp_port: bool = None
     # Misc
-    allow_skip: bool = False
-    overwrite: bool = False
-    from_csv: bool = False
+    allow_skip: bool
+    overwrite: bool
+    from_csv: bool
 
     # For now - always defaulted to LC
-    pp_port_type: RearPort = PortTypeChoices.TYPE_LC
-    z_pp_port_type: RearPort = PortTypeChoices.TYPE_LC
+    # pp_port_type: RearPort = PortTypeChoices.TYPE_LC
+    # z_pp_port_type: RearPort = PortTypeChoices.TYPE_LC
 
-    def __post_init__(self) -> None:
+    def __post_init__(self, **kwargs) -> None:
+        self.pp_port_type = PortTypeChoices.TYPE_LC
         """Validate/Set initial data properly"""
         if self.from_csv:
-            self._prepare_circuit_from_csv()
+            NiceCircuit._prepare_circuit_from_csv(self)
         self._validate_data()
         self._set_custom_fields()
 
@@ -92,12 +82,10 @@ class NiceCircuit:
         # Fix bools
         for field in [
             "direct_to_device",
-            "z_direct_to_device",
             "allow_skip",
             "review",
             "overwrite",
             "create_pp_port",
-            "z_create_pp_port",
         ]:
             value = getattr(self, field)
             setattr(self, field, utils.fix_bools(value))
@@ -109,7 +97,6 @@ class NiceCircuit:
         self.provider = utils.get_provider_by_name(self.provider)
         self.circuit_type = utils.get_circuit_type_by_name(name=self.circuit_type)
         self.side_a_site = utils.get_site_by_name(self.side_a_site)
-        self.side_z_site = utils.get_site_by_name(self.side_z_site)  # P2P
         self.side_z_providernetwork = utils.get_provider_network_by_name(self.side_z_providernetwork)
         self.device = utils.get_device_by_name(name=self.device, site=self.side_a_site)
         self.interface = utils.get_interface_by_name(name=self.interface, device=self.device)
@@ -119,15 +106,6 @@ class NiceCircuit:
             port_num=self.pp_new_port, logger=self.logger, skip=self.allow_skip
         )
         self.install_date = utils.validate_date(self.install_date)
-
-        # P2P
-        self.z_device = utils.get_device_by_name(name=self.z_device, site=self.side_z_site)
-        self.z_interface = utils.get_interface_by_name(name=self.z_interface, device=self.z_device)
-        self.z_pp = utils.get_device_by_name(name=self.z_pp, site=self.side_z_site)
-        self.z_pp_port = utils.get_rearport_by_name(name=self.z_pp_port, device=self.z_pp)
-        self.z_pp_new_port = utils.validate_pp_new_port(
-            port_num=self.z_pp_new_port, logger=self.logger, skip=self.allow_skip
-        )
 
     def create_new_pp_port(self, pp: Device, port_num: int, description: str) -> None:
         """
@@ -182,20 +160,14 @@ class NiceCircuit:
         error = False
         if self.pp_new_port and not self.create_pp_port:
             error = f"Cannot create new Patch Panel Port #: {self.pp_new_port} unless \"Create Patch Panel Interface\" is selected."
-        elif self.z_pp_new_port and not self.z_create_pp_port:
-            error = f"Cannot create new Patch Panel Port #: {self.pp_new_port} unless \"Create Patch Panel Interface\" is selected."
         elif self.pp_port and self.create_pp_port:
             error = f"Cannot choose an existing Patch Panel Port ({self.pp_port}) AND enable 'Create Patch Panel Port' simultaneously."
-        elif self.z_pp_port and self.z_create_pp_port:
-            error = f"Cannot choose an existing Patch Panel Port ({self.z_pp_port} AND enable 'Create Patch Panel Port' simultaneously."
         if error:
             utils.handle_errors(self.logger.log_failure, error, self.allow_skip)
 
         # Create Patch Panel Port?
         if self.pp_new_port and self.create_pp_port:
             self.pp_port = self.create_new_pp_port(self.pp, self.pp_new_port, self.pp_port_description)
-        if self.z_pp_new_port and self.z_create_pp_port:
-            self.z_pp_port = self.create_new_pp_port(self.z_pp, self.z_pp_new_port, self.z_pp_port_description)
 
         valid = self._validate_x_cables(
             self.pp,
@@ -207,15 +179,6 @@ class NiceCircuit:
         )
         if not valid:
             return
-        if isinstance(self, NiceP2PCircuit):
-            valid = self._validate_x_cables(
-                self.z_pp,
-                self.z_pp_port,
-                self.z_pp_port_description,
-                self.z_device,
-                self.z_interface,
-                self.z_direct_to_device,
-            )
 
         return valid
 
@@ -227,11 +190,6 @@ class NiceCircuit:
                 f"Missing/Not Found Mandatory Value for either: Circuit ID ({self.cid}), "
                 f"Provider ({self.provider}), or Circuit Type ({self.circuit_type})"
             )
-            raise AbortScript(error)
-
-        # Validate sites are unique
-        if self.side_a_site == self.side_z_site:
-            error = f"Cannot terminate {self.side_a_site} to {self.side_z_site}"
             raise AbortScript(error)
 
     def _build_site_termination(self, side: str, site: Site) -> CircuitTermination:
@@ -554,7 +512,7 @@ class NiceCircuit:
         return circuit
 
 
-class NiceBulkCircuits(NiceCircuit):
+class NiceBulkCircuits:
     """Entry point for loading a CSV of bulk circuits to create NiceCircuit obects"""
 
     @classmethod
@@ -577,19 +535,31 @@ class NiceBulkCircuits(NiceCircuit):
                 row["overwrite"] = overwrite
             elif row["overwrite"]:
                 row["overwrite"] = utils.fix_bools(row["overwrite"])
+
             if row.get("nice_script_type") == "Standard Circuit":
                 del row["nice_script_type"]
                 try:
-                    circuits.append(NiceStandardCircuit(**row))
+                    circuits.append(NiceStandardCircuit.from_csv(**row))
                 except TypeError as e:
                     error = "Malformed/Unsupported CSV Columns:\n"
                     error += f"{row}"
                     error += f"\n{e}\n"
                     raise AbortScript(error)
+
             elif row.get("nice_script_type") == "P2P Circuit":
                 del row["nice_script_type"]
                 try:
-                    circuits.append(NiceP2PCircuit(**row))
+                    circuits.append(NiceP2PCircuit.from_csv(**row))
+                except TypeError as e:
+                    error = "Malformed/Unsupported CSV Columns:\n"
+                    error += f"{row}"
+                    error += f"\n{e}\n"
+                    raise AbortScript(error)
+
+            elif row.get("nice_script_type") == "MeetMe Circuit":
+                del row["nice_script_type"]
+                try:
+                    circuits.append(NiceMeetMeCircuit.from_csv(**row))
                 except TypeError as e:
                     error = "Malformed/Unsupported CSV Columns:\n"
                     error += f"{row}"
@@ -604,20 +574,30 @@ class NiceStandardCircuit(NiceCircuit):
     The Standard NICE Circuit (device <-> patch panel (optional) <-> site <-> provider_network)
     """
 
-    def __post_init__(self):
+    @classmethod
+    def from_csv(cls, **kwargs):
+        # return cls(**{k: v for k, v in kwargs.items() if k in inspect.signature(cls).parameters})
+        field_names = {f.name for f in fields(cls)}
+        parameters = inspect.signature(cls).parameters
+        return cls(**{k: v for k, v in kwargs.items() if k in field_names and k in parameters})
+
+    def __post_init__(self, **kwargs):
         super().__post_init__()
 
     def create(self):
         """
         Standard Circuit Creation
         """
-        self.logger.log_info(f"Beginning Standard {self.cid} / {self.description} creation..")
+        self.logger.log_info(f"Beginning Standard: {self.cid} / {self.description} creation..")
         result = self.create_standard()
         self.logger.log_info(f"Finished {self.cid}.")
 
         return result
 
     def create_standard(self, p2p: bool = False) -> None:
+        """
+        Logic to Create a Standard Circuit
+        """
         self.circuit = super().create_circuit()
         if not self.circuit:
             return
@@ -648,17 +628,100 @@ class NiceP2PCircuit(NiceCircuit):
     P2P NICE Circuit (device <-> patch panel (optional) <-> site <-> site <-> patch panel (optional) <-> device)
     """
 
+    # Cables (Side Z)
+    side_z_site: Site
+    z_pp: Device
+    z_pp_port: RearPort
+    z_pp_port_description: str
+    z_pp_new_port: bool
+    z_pp_info: str
+    z_xconnect_id: str
+    z_device: Device
+    z_interface: Interface
+    z_direct_to_device: bool
+    z_create_pp_port: bool
+
+    @classmethod
+    def from_csv(cls, **kwargs):
+        return cls(**{k: v for k, v in kwargs.items() if k in inspect.signature(cls).parameters})
+
     def __post_init__(self):
         super().__post_init__()
+        if self.from_csv:
+            self._prepare_circuit_from_csv()
+        self._validate_p2p_data()
+
+    def _validate_p2p_data(self):
+        # Validate sites are unique
+        if self.side_a_site == self.side_z_site:
+            error = f"Cannot terminate {self.side_a_site} to {self.side_z_site}"
+            raise AbortScript(error)
+
+    def _prepare_circuit_from_csv(self) -> None:
+        """
+        Used to prepare the required data as netbox objects, if it was initially loaded from a CSV
+        """
+
+        # Fix bools
+        for field in [
+            "z_direct_to_device",
+            "z_create_pp_port",
+        ]:
+            value = getattr(self, field)
+            setattr(self, field, utils.fix_bools(value))
+
+        # P2P
+        self.side_z_site = utils.get_site_by_name(self.side_z_site)  # P2P
+        self.z_device = utils.get_device_by_name(name=self.z_device, site=self.side_z_site)
+        self.z_interface = utils.get_interface_by_name(name=self.z_interface, device=self.z_device)
+        self.z_pp = utils.get_device_by_name(name=self.z_pp, site=self.side_z_site)
+        self.z_pp_port = utils.get_rearport_by_name(name=self.z_pp_port, device=self.z_pp)
+        self.z_pp_new_port = utils.validate_pp_new_port(
+            port_num=self.z_pp_new_port, logger=self.logger, skip=self.allow_skip
+        )
+
+    def _init_patch_panel_properties(self) -> None:
+        """
+        Initialize any Patch Panel Properties
+        Including if there shouldn't be a Patch Panel
+        """
+        valid = super()._init_patch_panel_properties()
+        if not valid:
+            return
+        error = False
+        if self.z_pp_new_port and not self.z_create_pp_port:
+            error = f"Cannot create new Patch Panel Port #: {self.pp_new_port} unless \"Create Patch Panel Interface\" is selected."
+        elif self.z_pp_port and self.z_create_pp_port:
+            error = f"Cannot choose an existing Patch Panel Port ({self.z_pp_port} AND enable 'Create Patch Panel Port' simultaneously."
+        if error:
+            utils.handle_errors(self.logger.log_failure, error, self.allow_skip)
+
+        # Create Patch Panel Port?
+        if self.z_pp_new_port and self.z_create_pp_port:
+            self.z_pp_port = self.create_new_pp_port(self.z_pp, self.z_pp_new_port, self.z_pp_port_description)
+
+        valid = super()._validate_x_cables(
+            self.z_pp,
+            self.z_pp_port,
+            self.z_pp_port_description,
+            self.z_device,
+            self.z_interface,
+            self.z_direct_to_device,
+        )
+
+        return valid
 
     def create(self):
-        self.logger.log_info(f"Beginning P2P {self.cid} / {self.description} creation..")
+        self.logger.log_info(f"Beginning P2P: {self.cid} / {self.description} creation..")
         result = self.create_p2p()
         self.logger.log_info(f"Finished {self.cid}.")
 
         return result
 
     def create_p2p(self) -> None:
+        """
+        Logic to Create a Point-to-Point Circuit
+        """
         self.circuit = super().create_circuit()
         if not self.circuit:
             return
@@ -671,7 +734,7 @@ class NiceP2PCircuit(NiceCircuit):
         if not self.termination_z:
             return
 
-        success = super()._init_patch_panel_properties()
+        success = self._init_patch_panel_properties()
         if not success:
             return
         super().create_standard_cables(
@@ -679,6 +742,104 @@ class NiceP2PCircuit(NiceCircuit):
         )
         super().create_standard_cables(
             self.z_pp, self.z_pp_port, self.z_device, self.z_interface, self.termination_z, self.z_direct_to_device
+        )
+
+        return "success"
+
+
+@dataclass
+class NiceMeetMeCircuit(NiceCircuit):
+    """
+    Meet Me NICE Circuit (device <-> patch panel <-> patch panel <-> site <-> provider_network)
+    """
+
+    # Cables (Extra PP (closest to circuit))
+    mm_pp: Device
+    mm_pp_port: RearPort
+    mm_pp_port_description: str
+    mm_pp_new_port: bool
+    mm_pp_info: str
+    mm_xconnect_id: str
+    mm_create_pp_port: bool
+
+    @classmethod
+    def from_csv(cls, **kwargs):
+        return cls(**{k: v for k, v in kwargs.items() if k in inspect.signature(cls).parameters})
+
+    def __post_init__(self):
+        super().__post_init__()
+        if self.from_csv:
+            self._prepare_circuit_from_csv()
+        self._validate_meet_me_data()
+
+    def _validate_meet_me_data(self):
+        return True
+
+    def _prepare_circuit_from_csv(self) -> None:
+        """
+        Used to prepare the required data as netbox objects, if it was initially loaded from a CSV
+        """
+        # Fix bools
+        for field in [
+            "mm_create_pp_port",
+        ]:
+            value = getattr(self, field)
+            setattr(self, field, utils.fix_bools(value))
+
+        # P2P
+        # self.side_z_site = utils.get_site_by_name(self.side_z_site)  # P2P
+        # self.mm_device = utils.get_device_by_name(name=self.z_device, site=self.side_z_site)
+        # self.mm_interface = utils.get_interface_by_name(name=self.z_interface, device=self.z_device)
+        self.mm_pp = utils.get_device_by_name(name=self.mm_pp, site=self.side_a_site)
+        self.mm_pp_port = utils.get_rearport_by_name(name=self.mm_pp_port, device=self.mm_pp)
+        self.mm_pp_new_port = utils.validate_pp_new_port(
+            port_num=self.mm_pp_new_port, logger=self.logger, skip=self.allow_skip
+        )
+
+    def create(self):
+        self.logger.log_info(f"Beginning Meet Me: {self.cid} / {self.description} creation..")
+        result = self.create_meet_me()
+        self.logger.log_info(f"Finished {self.cid}.")
+
+        return result
+
+    def create_meet_me(self) -> None:
+        self.circuit = super().create_circuit()
+        if not self.circuit:
+            return
+
+        self.termination_a = super().create_site_termination(side="A", site=self.side_a_site)
+        if not self.termination_a:
+            return
+
+        self.termination_z = super().create_provider_network_termination(
+            side="Z", provider_network=self.side_z_providernetwork
+        )
+        if not self.termination_z:
+            return
+
+        success = super()._init_patch_panel_properties()
+        if not success:
+            return
+
+        # Device Cable
+        pp_frontport = self.get_frontport(self.pp_port)
+        label = f"{self.pp}/{pp_frontport}"
+        device_cable = self._build_device_x_cable(self.device, self.interface, a_side=pp_frontport, a_side_label=label)
+
+        # Meet Me Cable
+        mm_frontport = self.get_frontport(self.mm_pp_port)
+        label = f"{self.mm_pp}/{mm_frontport}"
+        mm_to_pp_cable = super()._build_device_x_cable(self.pp, self.pp_port, a_side=mm_frontport, a_side_label=label)
+
+        # Circuit Side A Cable
+        label = f"{self.termination_a.site}"
+        pp_cable = super()._build_device_x_cable(
+            self.mm_pp, self.mm_pp_port, a_side=self.termination_a, a_side_label=label
+        )
+
+        utils.save_cables(
+            logger=self.logger, allow_skip=self.allow_skip, cables=[device_cable, mm_to_pp_cable, pp_cable]
         )
 
         return "success"

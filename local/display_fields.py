@@ -198,7 +198,7 @@ HEADER_MAPPING = {
     "Install Date": "install_date",
     "Review": "review",
     "Comments": "comments",
-    # Cables (Side Z)
+    # Cables (P2P Side Z)
     "Patch Panel Z": "z_pp",
     "PP Z Port": "z_pp_port",
     "PP Z New Port": "z_pp_new_port",
@@ -213,6 +213,14 @@ HEADER_MAPPING = {
     "Allow Skip": "allow_skip",
     "Overwrite": "overwrite",
     "NICE Script Type": "nice_script_type",
+    # Meet Me Circuits
+    "PP Meet Me": "mm_pp",
+    "PP MM Port": "mm_pp_port",
+    "PP MM New Port": "mm_pp_new_port",
+    "PP MM Port Description": "mm_pp_port_description",
+    "PP MM Info": "mm_pp_info",
+    "MM Cross Connect": "mm_xconnect_id",
+    "Create PP MM Port": "mm_create_pp_port",
 }
 
 # Custom variables that should maybe be kept private (update these per install)
