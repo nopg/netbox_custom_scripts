@@ -164,8 +164,9 @@ def my_test_bulk(logger):
 
 def my_p2p_tests(logger):
 	#filename = "local/tests/gui_bulk_circuits_test.csv"
-	filename = "local/tests/testing-gui_single_circuit.csv"
-	circuits = NiceBulkCircuits.from_csv(logger=logger, filename=filename, circuit_num=3)
+	#filename = "local/tests/testing-gui_single_circuit.csv"
+	filename = "local/tests/csv-runscript-circuits.csv"
+	circuits = NiceBulkCircuits.from_csv(logger=logger, filename=filename, circuit_num=4)
 
 	from rich.pretty import pprint
 	pprint(circuits)
@@ -180,12 +181,12 @@ def my_p2p_tests(logger):
 def my_mm_test(logger):
 	from rich.pretty import pprint
 	filename = "local/tests/csv-runscript-circuits.csv"
-	circuits = NiceBulkCircuits.from_csv(logger=logger, filename=filename, circuit_num=10)
+	circuits = NiceBulkCircuits.from_csv(logger=logger, filename=filename, circuit_num=11)
 	pprint(circuits)
 
-	for circuit in circuits:
-		if isinstance(circuit, NiceMeetMeCircuit):
-			circuit.create()
+	# for circuit in circuits:
+	# 	if isinstance(circuit, NiceMeetMeCircuit):
+	# 		circuit.create()
 
 def	my_pp_updater_tests(logger: Script):
 	pp = Device.objects.get(name="mypatchpanel3")
@@ -272,9 +273,9 @@ class Test(Script):
 		#my_test1(self)
 		#my_xlsx_test()
 		#my_test_bulk(logger=self)
-		#my_p2p_tests(self)
+		my_p2p_tests(self)
 		#my_pp_updater_tests(self)
 		#my_pp_creator(self)
 		#my_bun_tester()
-		my_mm_test(self)
+		#my_mm_test(self)
 

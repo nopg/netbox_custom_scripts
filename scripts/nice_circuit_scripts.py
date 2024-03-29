@@ -1,3 +1,4 @@
+from circuits.models import Circuit
 from dcim.models import Device, FrontPort, RearPort, Site
 from extras.scripts import BooleanVar, ObjectVar, Script, StringVar
 from local.nice_circuits import NiceBulkCircuits, NiceP2PCircuit, NiceStandardCircuit
@@ -225,17 +226,31 @@ class BulkCircuits(Script):
             result = circuit.create()
             results[circuit.cid] = {"result": result, "description": circuit.description}
 
-        self.log_info("-----------------------------------------------------------------------")
-        self.log_info("Report of Success/Fail Circuit ID's:")
-        self.log_success("Successes: ")
+        # Output
+        output_success = "| Circuit ID | Description |\n"
+        output_success += "|------------|-------------|\n"
+        success_count = 0
         for cid, result in results.items():
             if result["result"]:
-                self.log_success(f"Circuit ID: {cid} - Description: {result['description']}")
-        self.log_failure("Failures: ")
+                success_count += 1
+                output_success += f"| {cid} | {result['description']}|\n"
+
+        output_fail = "| Circuit ID | Description |\n"
+        output_fail += "|------------|-------------|\n"
+        fail_count = 0
         for cid, result in results.items():
             if not result["result"]:
-                self.log_failure(f"Circuit ID: {cid} - Description: {result['description']}")
-        self.log_info("-----------------------------------------------------------------------")
+                fail_count += 1
+                output_fail += f"| {cid} | {result['description']}|\n"
+
+        if success_count:
+            self.log_info("---")
+            self.log_success("**Successes:**")
+            self.log_success(output_success)
+        if fail_count:
+            self.log_info("---")
+            self.log_failure("**Failures:**")
+            self.log_failure(output_fail)
 
 
 class UpdatePatchPanelPorts(Script):
@@ -275,7 +290,7 @@ class UpdatePatchPanelPorts(Script):
     )
     pp_rearport = ObjectVar(
         model=RearPort,
-        label="Existing/Example FrontPort Names",
+        label="Existing/Example RearPort Names",
         description="Only used to help confirm existing port names",
         required=False,
         query_params={"device_id": "$pp"},
@@ -309,5 +324,81 @@ class UpdatePatchPanelPorts(Script):
         pp_port_update(logger=self, **data)
 
 
-script_order = (StandardCircuit, P2PCircuit, BulkCircuits, UpdatePatchPanelPorts)
+class CircuitCableReport(Script):
+    class Meta:
+        name = "Circuit Cable Report"
+        commit_default = False
+        scheduling_enabled = False
+        description = "Retrieve Circuits that do not have a cable terminated on either side."
+
+    def get_site_name(self, circuit):
+        site_name = "Unknown"
+        for term in circuit.terminations.all():
+            if isinstance(term.site, Site):
+                site_name = term.site.name
+                break
+        return site_name
+
+    def circuit_cables(self, data):
+        # Get the Circuits
+        site = data.get("site")
+        show_all = data.get("show_all", False)
+
+        if site:
+            circuits_a = Circuit.objects.filter(termination_a__site__name=site.name)
+            circuits_z = Circuit.objects.filter(termination_z__site__name=site.name)
+            circuits = circuits_a | circuits_z
+        else:
+            circuits = Circuit.objects.all()
+
+        circuits_with = []
+        circuits_without = []
+
+        # Build the lists
+        for circuit in circuits:
+            terms = circuit.terminations.all()
+            cable_count = sum(1 for term in terms if term.cable)
+            if cable_count > 0:
+                circuits_with.append(circuit)
+            else:
+                circuits_without.append(circuit)
+
+        # Log Output
+        output = "| Circuit ID | Description | Site | Cable(s) Exist |\n"
+        output += "|------------|-------------|------|----------|\n"
+
+        if show_all:
+            for circuit in circuits_with:
+                site_name = self.get_site_name(circuit)
+                output += f"| {circuit.cid} | {circuit.description} | {site_name} | True\n"
+
+        for circuit in circuits_without:
+            site_name = self.get_site_name(circuit)
+            output += f"| {circuit.cid} | {circuit.description} | {site_name} | False\n"
+
+        output += "<br/>"
+        output += "<br/>"
+        if show_all:
+            output += f"With Cables: {len(circuits_with)}<br/>"
+        output += f"Without Cables: {len(circuits_without)}<br/>"
+        output += f"Total Circuits: {len(circuits)}\n"
+        self.log_info(output)
+
+    site = ObjectVar(
+        model=Site,
+        description="Limit Report to only this Site",
+        required=False,
+    )
+    show_all = BooleanVar(
+        label="Show All Circuits (WITH and without cables)",
+        description="Unchecked will only show circuits missing/without cables.",
+        default=False,
+    )
+
+    def run(self, data, commit):
+        commit = False
+        self.circuit_cables(data)
+
+
+script_order = (StandardCircuit, P2PCircuit, BulkCircuits, UpdatePatchPanelPorts, CircuitCableReport)
 name = "NICE InContact Single Circuit Manager"

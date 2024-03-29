@@ -1,23 +1,45 @@
 from circuits.models import Circuit
 from dcim.models import Device
 from extras.reports import Report
-from local.validators import MyCircuitValidator
+
+# from local.validators import MyCircuitValidator
 
 
-class CircuitIDReport(Report):
-    name = "Circuit CID Validation"
-    # description = "Verify each device conforms to naming convention Example: (site_name)-RTR-1 or (site_name)-SW-2"
-    description = "Circuit Validation Report"
+class CircuitCableReport(Report):
+    name = "Circuit Cable Report"
+    description = "Retrieve Circuits that do not have a cable terminated on either side."
+    scheduling_enabled = False
 
-    def test_circuit_naming(self):
-        validator = MyCircuitValidator()
-        for circuit in Circuit.objects.all():
-            # Change the naming standard based on the re.match
-            failed = validator.validate(circuit=circuit, manual=True)
-            if not failed:
-                self.log_success(circuit, f"{circuit.cid} is valid!")
+    def test_circuit_cables(self):
+        circuits = Circuit.objects.all()
+        circuits_with = []
+        circuits_without = []
+
+        for circuit in circuits:
+            self.log_success(circuit)
+            terms = circuit.terminations.all()
+            if not terms:
+                circuits_without.append(circuit)
+                continue
+            count = 0
+            for term in terms:
+                if term.cable:
+                    count += 1
+            if count == 0:
+                circuits_without.append(circuit)
+                continue
             else:
-                self.log_failure(circuit, f"{circuit.cid} does not conform to standard!")
+                circuits_with.append(circuit)
+
+        self.log(f"With: {len(circuits_with)}")
+        for circuit in circuits_with:
+            self.log_info(circuit, "Has Cable Attached")
+
+        self.log(f"Without: {len(circuits_without)}")
+        for circuit in circuits_without:
+            self.log_warning(circuit, "No Cable Attached")
+
+        self.log(f"Total: {len(circuits_with) + len(circuits_without)}")
 
 
 class ReviewReport(Report):

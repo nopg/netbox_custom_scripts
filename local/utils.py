@@ -173,6 +173,7 @@ def get_rearport_by_name(name: str, device: Device = None) -> RearPort | None:
     """
     Retrieve a rear port by name.
     """
+
     if device:
         return RearPort.objects.filter(name=name, device=device).first()
     return RearPort.objects.filter(name=name).first()
@@ -222,12 +223,12 @@ def _pp_port_update(logger, port, old, new, revert_if_failed) -> None:
     old_name = port.name
     if old not in old_name:
         error = f"{old} was not found in the port name, typo?"
-        handle_errors(logger.log_warning, error, revert_if_failed)
+        handle_errors(logger.log_warning, error, skip=revert_if_failed)
 
     port.name = port.name.replace(old, new)
     if port.name == old_name:
         error = f"Name did not change from {old_name}. New: {new}"
-        handle_errors(logger.log_failure, error, not revert_if_failed)
+        handle_errors(logger.log_warning, error, skip=True)
     try:
         port.full_clean()
         port.save()
@@ -330,13 +331,18 @@ def save_cables(logger: Script, cables: list, allow_skip: bool = False):
                     else:
                         error += f"\tValidation Error saving Cable: {e.messages}\n"
                 handle_errors(logger.log_failure, error, allow_skip)
+                return
             except AttributeError as e:
                 error = f"\tUnknown error saving Cable {cable}: {e}"
                 handle_errors(logger.log_failure, error, allow_skip)
+                return
             except Exception as e:
                 error = f"\tUnknown error saving Cable: {e}"
                 error += f"\tType: {type(e)}"
                 handle_errors(logger.log_failure, error, allow_skip)
+                return
+
+    return "success"
 
 
 def validate_circuit(circuit: Circuit) -> bool:

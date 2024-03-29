@@ -163,7 +163,7 @@ bulk_circuits = FileVar(
     description="Bulk Import Circuits",
     required=True,
 )
-circuit_num = IntegerVar(label="Circuit/Line Number", required=False)
+circuit_num = IntegerVar(label="CSV Line Number", required=False)
 overwrite = BooleanVar(
     description="Overwrite existing circuits? (same Circuit ID & Provider == Same Circuit)", default=False
 )
@@ -192,8 +192,8 @@ HEADER_MAPPING = {
     "Cable Direct To Device": "direct_to_device",
     "Create PP Port": "create_pp_port",
     # Other
-    "Port Speed": "port_speed",
-    "Upload Speed": "upstream_speed",
+    "Port Speed (Kbps)": "port_speed",
+    "Upload Speed (Kbps)": "upstream_speed",
     "Commit Rate (Kbps)": "cir",
     "Install Date": "install_date",
     "Review": "review",

@@ -164,6 +164,7 @@ class NiceCircuit:
             error = f"Cannot choose an existing Patch Panel Port ({self.pp_port}) AND enable 'Create Patch Panel Port' simultaneously."
         if error:
             utils.handle_errors(self.logger.log_failure, error, self.allow_skip)
+            return False
 
         # Create Patch Panel Port?
         if self.pp_new_port and self.create_pp_port:
@@ -177,9 +178,6 @@ class NiceCircuit:
             self.interface,
             self.direct_to_device,
         )
-        if not valid:
-            return
-
         return valid
 
     def _validate_data(self) -> None:
@@ -477,11 +475,11 @@ class NiceCircuit:
         else:
             pp_cable = self._build_pp_x_cable(pp, pp_port, a_side=termination)
             device_side_a = self.get_frontport(pp_port)
-            label = f"{self.pp}/{self.get_frontport(pp_port)}"
+            label = f"{pp}/{self.get_frontport(pp_port)}"
 
         device_cable = self._build_device_x_cable(device, interface, a_side=device_side_a, a_side_label=label)
 
-        utils.save_cables(logger=self.logger, allow_skip=self.allow_skip, cables=[pp_cable, device_cable])
+        return utils.save_cables(logger=self.logger, allow_skip=self.allow_skip, cables=[pp_cable, device_cable])
 
     def create_circuit(self) -> Circuit:
         """
@@ -526,7 +524,7 @@ class NiceBulkCircuits:
         circuits = []
 
         if circuit_num:
-            csv_data = [csv_data[circuit_num - 1]]
+            csv_data = [csv_data[circuit_num - 2]]  # 1 for header, 1 for zero indexing
         for row in csv_data:
             # Set initial values
             row["logger"] = logger
@@ -615,11 +613,11 @@ class NiceStandardCircuit(NiceCircuit):
         success = super()._init_patch_panel_properties()
         if not success:
             return
-        super().create_standard_cables(
+        success = super().create_standard_cables(
             self.pp, self.pp_port, self.device, self.interface, self.termination_a, self.direct_to_device
         )
 
-        return "success"
+        return success
 
 
 @dataclass
@@ -737,14 +735,16 @@ class NiceP2PCircuit(NiceCircuit):
         success = self._init_patch_panel_properties()
         if not success:
             return
-        super().create_standard_cables(
+        success = super().create_standard_cables(
             self.pp, self.pp_port, self.device, self.interface, self.termination_a, self.direct_to_device
         )
-        super().create_standard_cables(
+        if not success:
+            return
+        success = super().create_standard_cables(
             self.z_pp, self.z_pp_port, self.z_device, self.z_interface, self.termination_z, self.z_direct_to_device
         )
 
-        return "success"
+        return success
 
 
 @dataclass
@@ -786,10 +786,7 @@ class NiceMeetMeCircuit(NiceCircuit):
             value = getattr(self, field)
             setattr(self, field, utils.fix_bools(value))
 
-        # P2P
-        # self.side_z_site = utils.get_site_by_name(self.side_z_site)  # P2P
-        # self.mm_device = utils.get_device_by_name(name=self.z_device, site=self.side_z_site)
-        # self.mm_interface = utils.get_interface_by_name(name=self.z_interface, device=self.z_device)
+        # Meet Me
         self.mm_pp = utils.get_device_by_name(name=self.mm_pp, site=self.side_a_site)
         self.mm_pp_port = utils.get_rearport_by_name(name=self.mm_pp_port, device=self.mm_pp)
         self.mm_pp_new_port = utils.validate_pp_new_port(
@@ -838,8 +835,8 @@ class NiceMeetMeCircuit(NiceCircuit):
             self.mm_pp, self.mm_pp_port, a_side=self.termination_a, a_side_label=label
         )
 
-        utils.save_cables(
+        success = utils.save_cables(
             logger=self.logger, allow_skip=self.allow_skip, cables=[device_cable, mm_to_pp_cable, pp_cable]
         )
 
-        return "success"
+        return success
