@@ -14,6 +14,7 @@ from dcim.choices import CableTypeChoices, PortTypeChoices
 from dcim.models import Cable, Device, FrontPort, Interface, RearPort, Site
 from django.core.files.uploadedfile import InMemoryUploadedFile
 from extras.scripts import Script
+from utilities.choices import ColorChoices
 from utilities.exceptions import AbortScript
 
 
@@ -53,12 +54,11 @@ class NiceCircuit:
     overwrite: bool
     from_csv: bool
 
-    # For now - always defaulted to LC
-    # pp_port_type: RearPort = PortTypeChoices.TYPE_LC
-    # z_pp_port_type: RearPort = PortTypeChoices.TYPE_LC
 
     def __post_init__(self, **kwargs) -> None:
+        # For now - always defaulted to LC & Yellow
         self.pp_port_type = PortTypeChoices.TYPE_LC
+        self.cable_color = ColorChoices.COLOR_YELLOW
         """Validate/Set initial data properly"""
         if self.from_csv:
             NiceCircuit._prepare_circuit_from_csv(self)
@@ -356,7 +356,9 @@ class NiceCircuit:
         if not isinstance(rear_port, RearPort):
             return None
         if self.pp_port.positions > 1:
-            raise AbortScript(f"RearPorts with multiple positions not yet implemented: Device/RearPort: {rear_port.device.name} / {rear_port}")
+            raise AbortScript(
+                f"RearPorts with multiple positions not yet implemented: Device/RearPort: {rear_port.device.name} / {rear_port}"
+            )
 
         return rear_port.frontports.first()
 
@@ -404,7 +406,10 @@ class NiceCircuit:
         return valid
 
     def _build_device_or_pp_cable(
-        self, device_or_pp: Device, interface_or_pp_port: Interface, a_side: FrontPort | CircuitTermination,
+        self,
+        device_or_pp: Device,
+        interface_or_pp_port: Interface,
+        a_side: FrontPort | CircuitTermination,
     ) -> Cable:
         """
         Builds a Cable from a Device and returns it (not yet created/saved to the db)
@@ -429,8 +434,14 @@ class NiceCircuit:
         else:
             raise AbortScript(f"Unsupported a_side: {a_side}.")
 
+        
+        
         return Cable(
-            a_terminations=[a_side], b_terminations=[interface_or_pp_port], type=CableTypeChoices.TYPE_SMF_OS2, label=label
+            a_terminations=[a_side],
+            b_terminations=[interface_or_pp_port],
+            type=CableTypeChoices.TYPE_SMF_OS2,
+            label=label,
+            color=self.cable_color,
         )
 
     def create_standard_cables(
@@ -503,7 +514,7 @@ class NiceBulkCircuits:
                 csv_data = [csv_data[circuit_num - 1]]  # 1 for header, 1 for zero indexing
             except IndexError:
                 raise AbortScript(f"Circuit {circuit_num} not found!, Only {len(csv_data)} rows found.")
-    
+
         for row in csv_data:
             # Set initial values
             row["logger"] = logger
@@ -801,9 +812,7 @@ class NiceMeetMeCircuit(NiceCircuit):
             return
 
         # Circuit Side A Cable
-        pp_cable = super()._build_device_or_pp_cable(
-            self.mm_pp, self.mm_pp_port, a_side=self.termination_a
-        )
+        pp_cable = super()._build_device_or_pp_cable(self.mm_pp, self.mm_pp_port, a_side=self.termination_a)
 
         # Meet Me Cable
         mm_frontport = self.get_frontport(self.mm_pp_port)
