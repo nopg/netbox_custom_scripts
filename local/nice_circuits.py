@@ -384,7 +384,7 @@ class NiceCircuit:
         valid = True
         error = False
         if device is None or interface is None:
-            error = f"\tCID '{self.cid}': Error: Missing Device ({device}) and/or Interface {interface}."
+            error = f"\tCID '{self.cid}': Error: Missing Device ({device}) and/or Interface ({interface})."
         elif direct_to_device and (pp or pp_port):
             error = (
                 f"\tCID '{self.cid}': Error: Cable Direct to Device chosen, but Patch Panel ({pp}) was also selected."
@@ -524,7 +524,11 @@ class NiceBulkCircuits:
         circuits = []
 
         if circuit_num:
-            csv_data = [csv_data[circuit_num - 2]]  # 1 for header, 1 for zero indexing
+            try:
+                csv_data = [csv_data[circuit_num - 1]]  # 1 for header, 1 for zero indexing
+            except IndexError:
+                raise AbortScript(f"Circuit {circuit_num} not found!, Only {len(csv_data)} rows found.")
+    
         for row in csv_data:
             # Set initial values
             row["logger"] = logger
@@ -563,6 +567,8 @@ class NiceBulkCircuits:
                     error += f"{row}"
                     error += f"\n{e}\n"
                     raise AbortScript(error)
+            else:
+                raise AbortScript(f"Invalid Script Type: {row.get('nice_script_type')}")
         return circuits
 
 
