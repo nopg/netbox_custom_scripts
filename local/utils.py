@@ -322,7 +322,7 @@ def save_cables(logger: Script, cables: list, allow_skip: bool = False):
             try:
                 cable.full_clean()
                 cable.save()
-                logger.log_success(f"\tSaved Cable: '{cable}'")
+                logger.log_success(f"\tSaved Cable: {cable}")
             except ValidationError as e:
                 error = ""
                 for msg in e.messages:

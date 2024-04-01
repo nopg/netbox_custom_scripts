@@ -506,8 +506,8 @@ class CircuitAdderTestCase(TestCase):
         term_z_count = sum(log.count("Termination Z") for log in logs.output)
         cable_count = sum(log.count("Saved Cable:") for log in logs.output)
         self.assertEqual(term_count, 2)
-        self.assertEqual(term_a_count, 1)
-        self.assertEqual(term_z_count, 1)
+        self.assertEqual(term_a_count, 2)
+        self.assertEqual(term_z_count, 2)
         self.assertEqual(cable_count, 4)
         # No warnings
         self.assertFalse(any("WARNING" in log for log in logs.output))

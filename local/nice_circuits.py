@@ -356,7 +356,7 @@ class NiceCircuit:
         if not isinstance(rear_port, RearPort):
             return None
         if self.pp_port.positions > 1:
-            raise AbortScript(f"RearPorts with multiple positions not yet implemented: RearPort: {rear_port}")
+            raise AbortScript(f"RearPorts with multiple positions not yet implemented: Device/RearPort: {rear_port.device.name} / {rear_port}")
 
         return rear_port.frontports.first()
 
@@ -403,8 +403,8 @@ class NiceCircuit:
 
         return valid
 
-    def _build_device_x_cable(
-        self, device: Device, interface: Interface, a_side: FrontPort | CircuitTermination, a_side_label: str
+    def _build_device_or_pp_cable(
+        self, device_or_pp: Device, interface_or_pp_port: Interface, a_side: FrontPort | CircuitTermination,
     ) -> Cable:
         """
         Builds a Cable from a Device and returns it (not yet created/saved to the db)
@@ -413,47 +413,24 @@ class NiceCircuit:
             device: The device
             interface: The device's Interface
             a_side: The OTHER side of this cable, either a FrontPort or Circuit Termination
-            a_side_label: Label to describe this cable
 
         Returns:
             A netbox Cable object
         """
-        if not device or not interface:
+        if not device_or_pp or not interface_or_pp_port:
             error = f"CID '{self.cid}': Unable to create cable to the device for circuit: {self.cid}"
             utils.handle_errors(self.logger.log_failure, error, self.allow_skip)
             return
 
-        label = f"{self.cid}: {device}/{interface} <-> {a_side_label}"
+        if isinstance(a_side, CircuitTermination):
+            label = f"({a_side}) <-> ({device_or_pp} / {interface_or_pp_port})"
+        elif isinstance(a_side, FrontPort):
+            label = f"({self.cid}: {device_or_pp} / {interface_or_pp_port}) <-> ({a_side.device.name} / {(a_side)})"
+        else:
+            raise AbortScript(f"Unsupported a_side: {a_side}.")
 
         return Cable(
-            a_terminations=[a_side], b_terminations=[interface], type=CableTypeChoices.TYPE_SMF_OS2, label=label
-        )
-
-    def _build_pp_x_cable(self, pp: Device, pp_port: RearPort, a_side: CircuitTermination):
-        """
-        Builds a Cable from a Patch Panel and returns it (not yet created/saved to the db)
-
-        Args:
-            pp: The patch panel
-            pp_port: The patch panel's RearPort
-            a_side: The OTHER side of this cable, always a CircuitTermination
-
-        Returns:
-            A netbox CircuitTermination objcet
-        """
-
-        if not pp or not pp_port:
-            error = f"CID '{self.cid}': Unable to create cable to Patch Panel for circuit: {self.cid}"
-            utils.handle_errors(self.logger.log_failure, error, self.allow_skip)
-            return
-
-        label = f"{self.cid}: {pp}/{pp_port} <-> {a_side.site}"
-
-        return Cable(
-            a_terminations=[a_side],
-            b_terminations=[pp_port],
-            type=CableTypeChoices.TYPE_SMF_OS2,
-            label=label,
+            a_terminations=[a_side], b_terminations=[interface_or_pp_port], type=CableTypeChoices.TYPE_SMF_OS2, label=label
         )
 
     def create_standard_cables(
@@ -471,13 +448,11 @@ class NiceCircuit:
         if direct_to_device:
             pp_cable = None
             device_side_a = termination
-            label = f"{termination}"
         else:
-            pp_cable = self._build_pp_x_cable(pp, pp_port, a_side=termination)
+            pp_cable = self._build_device_or_pp_cable(pp, pp_port, a_side=termination)
             device_side_a = self.get_frontport(pp_port)
-            label = f"{pp}/{self.get_frontport(pp_port)}"
 
-        device_cable = self._build_device_x_cable(device, interface, a_side=device_side_a, a_side_label=label)
+        device_cable = self._build_device_or_pp_cable(device, interface, a_side=device_side_a)
 
         return utils.save_cables(logger=self.logger, allow_skip=self.allow_skip, cables=[pp_cable, device_cable])
 
@@ -825,21 +800,18 @@ class NiceMeetMeCircuit(NiceCircuit):
         if not success:
             return
 
-        # Device Cable
-        pp_frontport = self.get_frontport(self.pp_port)
-        label = f"{self.pp}/{pp_frontport}"
-        device_cable = self._build_device_x_cable(self.device, self.interface, a_side=pp_frontport, a_side_label=label)
+        # Circuit Side A Cable
+        pp_cable = super()._build_device_or_pp_cable(
+            self.mm_pp, self.mm_pp_port, a_side=self.termination_a
+        )
 
         # Meet Me Cable
         mm_frontport = self.get_frontport(self.mm_pp_port)
-        label = f"{self.mm_pp}/{mm_frontport}"
-        mm_to_pp_cable = super()._build_device_x_cable(self.pp, self.pp_port, a_side=mm_frontport, a_side_label=label)
+        mm_to_pp_cable = super()._build_device_or_pp_cable(self.pp, self.pp_port, a_side=mm_frontport)
 
-        # Circuit Side A Cable
-        label = f"{self.termination_a.site}"
-        pp_cable = super()._build_device_x_cable(
-            self.mm_pp, self.mm_pp_port, a_side=self.termination_a, a_side_label=label
-        )
+        # Device Cable
+        pp_frontport = self.get_frontport(self.pp_port)
+        device_cable = self._build_device_or_pp_cable(self.device, self.interface, a_side=pp_frontport)
 
         success = utils.save_cables(
             logger=self.logger, allow_skip=self.allow_skip, cables=[device_cable, mm_to_pp_cable, pp_cable]
