@@ -3,6 +3,7 @@ from dcim.models import Device, FrontPort, RearPort, Site
 from extras.scripts import BooleanVar, ObjectVar, Script, StringVar
 from local.nice_circuits import NiceBulkCircuits, NiceP2PCircuit, NiceStandardCircuit
 from local.utils import pp_port_update, validate_user
+from local.validators import CircuitValidator
 from utilities.exceptions import AbortScript
 
 
@@ -396,9 +397,54 @@ class CircuitCableReport(Script):
     )
 
     def run(self, data, commit):
-        commit = False
         self.circuit_cables(data)
 
 
-script_order = (StandardCircuit, P2PCircuit, BulkCircuits, UpdatePatchPanelPorts, CircuitCableReport)
+class CircuitValidation(Script):
+    class Meta:
+        name = "Circuit Validation"
+        commit_default = False
+        scheduling_enabled = False
+        description = "Display whether a Circuit or Circuits are 'valid'."
+
+    site = ObjectVar(
+        model=Site,
+        label="Find Circuit(s) in Site:",
+        description="Leave blank to find all Sites:",
+        required=False,
+    )
+    circuit = ObjectVar(
+        model=Circuit,
+        label="Circuit",
+        description="Leave Blank to find all Circuits",
+        required=False,
+        query_params={"site_id": "$site"},
+    )
+
+    def run(self, data, commit):
+        validator = CircuitValidator()
+        circuit = data["circuit"]
+        site = data["site"]
+
+        if circuit:
+            circuits = [circuit]
+        elif site:
+            circuits_a = Circuit.objects.filter(termination_a__site__name=site.name)
+            circuits_z = Circuit.objects.filter(termination_z__site__name=site.name)
+            circuits = circuits_a | circuits_z
+        else:
+            circuits = Circuit.objects.all()
+
+        for circuit in circuits:
+            valid, message = validator.validate(circuit, logger=self)
+            
+            if not valid:
+                log = self.log_failure
+            else:
+                log = self.log_success
+
+            log(f"Circuit: {circuit} -- {message:>20}")
+
+
+script_order = (StandardCircuit, P2PCircuit, BulkCircuits, UpdatePatchPanelPorts, CircuitCableReport, CircuitValidation)
 name = "NICE InContact Single Circuit Manager"

@@ -18,8 +18,7 @@ from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import InMemoryUploadedFile
 from extras.scripts import Script
 from local.display_fields import HEADER_MAPPING
-from local.validators import MyCircuitValidator
-from utilities.choices import ColorChoices
+from local.validators import CircuitValidator
 from utilities.exceptions import AbortScript
 
 BULK_SCRIPT_ALLOWED_USERS = ["netbox", "danny.berman", "joe.deweese", "loran.fuchs", "taylor", "gustavo"]
@@ -345,22 +344,23 @@ def save_cables(logger: Script, cables: list, allow_skip: bool = False):
     return "success"
 
 
-def validate_circuit(circuit: Circuit) -> bool:
-    """
-    Validate a circuit.
-    """
-    b = MyCircuitValidator()
-    failed = b.validate(circuit=circuit, manual=True)
-    return failed
+# def validate_circuit(circuit: Circuit) -> bool:
+#     """
+#     Validate a circuit.
+#     """
+#     validator = CircuitValidator()
+#     valid, err = validator.validate(circuit=circuit)
+#     return valid
 
 
 def save_circuit(circuit: Circuit, logger: Script, allow_skip: bool = False):
     """
     Save a circuit and handle any errors.
     """
-    error = validate_circuit(circuit)
-    if error:
-        error += f"Failed custom validation: {error}"
+    #valid, err = CircuitValidator().validate(circuit)
+    valid = True
+    if not valid:
+        error = f"Failed custom validation: {err}"
         handle_errors(logger.log_failure, error, allow_skip)
     else:
         try:

@@ -9,6 +9,7 @@ from utilities.exceptions import AbortScript
 from local import utils
 from local.nice_circuits import NiceBulkCircuits, NiceStandardCircuit, NiceMeetMeCircuit
 
+from rich.pretty import pprint
 
 def ct_checks(self):
 	cts = CircuitTermination.objects.all()
@@ -51,14 +52,36 @@ def cable_checks():
 				cable = term.cable
 				cables.append(cable)
 	
+	t_a = []
+	t_b = []
+	t_a_count = {}
+	t_b_count = {}
 	for c in cables:
 		if c:
 			if c.a_terminations:
 				for a in c.a_terminations:
 					print(f"side a: {type(a)}")
+					t_a.append(type(a))
 			if c.b_terminations:
 				for b in c.b_terminations:
 					print(f"side b: {type(b)}")
+					t_b.append(type(b))
+
+	for t in t_a:
+		print(f"Side_A: {t}")
+		if t in t_a_count:
+			t_a_count[t] += 1
+		else:
+			t_a_count[t] = 1
+	for t in t_b:
+		print(f"Side_B: {t}")
+		if t in t_b_count:
+			t_b_count[t] += 1
+		else:
+			t_b_count[t] = 1
+	
+	pprint(t_a_count)
+	pprint(t_b_count)
 
 def term_types():
 	cts = CircuitTermination.objects.all()
@@ -247,6 +270,19 @@ def load_excel(filename: str) -> openpyxl.workbook.workbook.Workbook:
 
     return tmp
 
+def my_circuit_validator(logger):
+	# filename = "local/tests/csv-runscript-circuits.csv"
+	# circuits = NiceBulkCircuits.from_csv(logger=logger, filename=filename, circuit_num=3)
+	# circuit = Circuit.objects.get(cid="mycircuit3")
+	circuits = Circuit.objects.filter(termination_a__site__name="mysite1")
+	
+	from local.validators import CircuitValidator
+	validator = CircuitValidator()
+	for circuit in circuits:
+		valid, message = validator.validate(circuit=circuit, logger=logger)
+		logger.log_info(f"{valid=}, {message=}")
+
+
 # def my_xlsx_test():
 # 	excel_filename = "Requirements.xlsx"
 # 	_ = load_excel(excel_filename)
@@ -273,10 +309,11 @@ class Test(Script):
 		#pp_port_descrs()
 		#my_test1(self)
 		#my_xlsx_test()
-		my_test_bulk(logger=self)
+		#my_test_bulk(logger=self)
 		#my_p2p_tests(self)
 		#my_pp_updater_tests(self)
 		#my_pp_creator(self)
 		#my_bun_tester()
 		#my_mm_test(self)
+		my_circuit_validator(self)
 
