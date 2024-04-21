@@ -435,13 +435,20 @@ class CircuitValidation(Script):
         else:
             circuits = Circuit.objects.all()
 
+        if not circuits:
+            self.log_info(f"No Circuits found.")
+        circuits_valid = []
+        circuits_invalid = []
+
         for circuit in circuits:
             valid, message = validator.validate(circuit, logger=self)
             
-            if not valid:
-                log = self.log_failure
-            else:
+            if valid:
+                circuits_valid.append({"circuit": circuit, "message": message})
                 log = self.log_success
+            else:
+                circuits_invalid.append({"circuit": circuit, "message": message})
+                log = self.log_failure
 
             log(f"Circuit: {circuit} -- {message:>20}")
 

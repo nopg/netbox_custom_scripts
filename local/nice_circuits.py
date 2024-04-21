@@ -18,7 +18,7 @@ from utilities.choices import ColorChoices
 from utilities.exceptions import AbortScript
 
 
-@dataclass
+@dataclass(kw_only=True)
 class NiceCircuit:
     """Parent/Main dataclass representing a circuit in netbox with cabling details"""
 
@@ -50,9 +50,10 @@ class NiceCircuit:
     review: bool
     comments: str
     # Misc
-    allow_skip: bool
-    overwrite: bool
-    from_csv: bool
+    allow_skip: bool = False
+    overwrite: bool = False
+    from_csv: bool = False
+    #circuit: Circuit = None
 
 
     def __post_init__(self, **kwargs) -> None:
@@ -201,7 +202,8 @@ class NiceCircuit:
         Returns:
             A netbox CircuitTermination
         """
-        xconnect_id = self.xconnect_id if side == "A" else self.z_xconnect_id
+        xconnect_id = self.xconnect_id if side == "A" else getattr(self, "z_xconnect_id", "")
+        pp_info = self.pp_info if side == "A" else getattr(self, "z_pp_info", "")
         termination = None
         existing = self.circuit.terminations.all()
         if len(existing) > 0:
@@ -220,11 +222,13 @@ class NiceCircuit:
                 port_speed=self.port_speed,
                 upstream_speed=self.upstream_speed,
                 xconnect_id=xconnect_id,
+                pp_info=pp_info,
             )
         else:
             termination.port_speed = self.port_speed
             termination.upstream_speed = self.upstream_speed
-            termination.xconnect_id = self.xconnect_id
+            termination.xconnect_id = xconnect_id
+            termination.pp_info = pp_info
 
         return termination
 
@@ -266,6 +270,9 @@ class NiceCircuit:
         Returns:
             A netbox CircuitTermination
         """
+    
+        pp_info = self.pp_info if side == "A" else getattr(self, "z_pp_info", "")
+
         termination: CircuitTermination = None
         existing = self.circuit.terminations.all()
         if len(existing) > 0:
@@ -283,12 +290,14 @@ class NiceCircuit:
                 circuit=self.circuit,
                 port_speed=self.port_speed,
                 upstream_speed=self.upstream_speed,
-                xconnect_id=self.xconnect_id,
+                #xconnect_id=self.xconnect_id,
+                pp_info=pp_info,
             )
         else:
             termination.port_speed = self.port_speed
             termination.upstream_speed = self.upstream_speed
-            termination.xconnect_id = self.xconnect_id
+            #termination.xconnect_id = self.xconnect_id
+            termination.pp_info = pp_info
 
         return termination
 
@@ -448,13 +457,14 @@ class NiceCircuit:
         self,
         pp: Device,
         pp_port: RearPort,
+        pp_port_description: str,
         device: Device,
         interface: Interface,
         termination: CircuitTermination,
         direct_to_device: bool,
     ) -> None:
         """
-        Creates ands saves 'standard' cables for most circuit use cases
+        Creates and saves 'standard' cables for most circuit use cases
         """
         if direct_to_device:
             pp_cable = None
@@ -462,6 +472,10 @@ class NiceCircuit:
         else:
             pp_cable = self._build_device_or_pp_cable(pp, pp_port, a_side=termination)
             device_side_a = self.get_frontport(pp_port)
+            if device_side_a:
+                pp_port.description = pp_port_description if pp_port_description else pp_port.description
+                pp_port.full_clean()
+                pp_port.save()
 
         device_cable = self._build_device_or_pp_cable(device, interface, a_side=device_side_a)
 
@@ -527,7 +541,7 @@ class NiceBulkCircuits:
             if row.get("nice_script_type") == "Standard Circuit":
                 del row["nice_script_type"]
                 try:
-                    circuits.append(NiceStandardCircuit.from_csv(**row))
+                    circuits.append(NiceStandardCircuit._from_csv(**row))
                 except TypeError as e:
                     error = "Malformed/Unsupported CSV Columns:\n"
                     error += f"{row}"
@@ -537,7 +551,7 @@ class NiceBulkCircuits:
             elif row.get("nice_script_type") == "P2P Circuit":
                 del row["nice_script_type"]
                 try:
-                    circuits.append(NiceP2PCircuit.from_csv(**row))
+                    circuits.append(NiceP2PCircuit._from_csv(**row))
                 except TypeError as e:
                     error = "Malformed/Unsupported CSV Columns:\n"
                     error += f"{row}"
@@ -547,7 +561,7 @@ class NiceBulkCircuits:
             elif row.get("nice_script_type") == "MeetMe Circuit":
                 del row["nice_script_type"]
                 try:
-                    circuits.append(NiceMeetMeCircuit.from_csv(**row))
+                    circuits.append(NiceMeetMeCircuit._from_csv(**row))
                 except TypeError as e:
                     error = "Malformed/Unsupported CSV Columns:\n"
                     error += f"{row}"
@@ -558,14 +572,14 @@ class NiceBulkCircuits:
         return circuits
 
 
-@dataclass
+@dataclass(kw_only=True)
 class NiceStandardCircuit(NiceCircuit):
     """
     The Standard NICE Circuit (device <-> patch panel (optional) <-> site <-> provider_network)
     """
 
     @classmethod
-    def from_csv(cls, **kwargs):
+    def _from_csv(cls, **kwargs):
         # return cls(**{k: v for k, v in kwargs.items() if k in inspect.signature(cls).parameters})
         field_names = {f.name for f in fields(cls)}
         parameters = inspect.signature(cls).parameters
@@ -606,13 +620,13 @@ class NiceStandardCircuit(NiceCircuit):
         if not success:
             return
         success = super().create_standard_cables(
-            self.pp, self.pp_port, self.device, self.interface, self.termination_a, self.direct_to_device
+            self.pp, self.pp_port, self.pp_port_description, self.device, self.interface, self.termination_a, self.direct_to_device
         )
 
         return success
 
 
-@dataclass
+@dataclass(kw_only=True)
 class NiceP2PCircuit(NiceCircuit):
     """
     P2P NICE Circuit (device <-> patch panel (optional) <-> site <-> site <-> patch panel (optional) <-> device)
@@ -632,7 +646,7 @@ class NiceP2PCircuit(NiceCircuit):
     z_create_pp_port: bool
 
     @classmethod
-    def from_csv(cls, **kwargs):
+    def _from_csv(cls, **kwargs):
         return cls(**{k: v for k, v in kwargs.items() if k in inspect.signature(cls).parameters})
 
     def __post_init__(self):
@@ -728,18 +742,18 @@ class NiceP2PCircuit(NiceCircuit):
         if not success:
             return
         success = super().create_standard_cables(
-            self.pp, self.pp_port, self.device, self.interface, self.termination_a, self.direct_to_device
+            self.pp, self.pp_port, self.pp_port_description, self.device, self.interface, self.termination_a, self.direct_to_device
         )
         if not success:
             return
         success = super().create_standard_cables(
-            self.z_pp, self.z_pp_port, self.z_device, self.z_interface, self.termination_z, self.z_direct_to_device
+            self.z_pp, self.z_pp_port, self.z_pp_port_description, self.z_device, self.z_interface, self.termination_z, self.z_direct_to_device
         )
 
         return success
 
 
-@dataclass
+@dataclass(kw_only=True)
 class NiceMeetMeCircuit(NiceCircuit):
     """
     Meet Me NICE Circuit (device <-> patch panel <-> patch panel <-> site <-> provider_network)
@@ -751,11 +765,10 @@ class NiceMeetMeCircuit(NiceCircuit):
     mm_pp_port_description: str
     mm_pp_new_port: bool
     mm_pp_info: str
-    mm_xconnect_id: str
     mm_create_pp_port: bool
 
     @classmethod
-    def from_csv(cls, **kwargs):
+    def _from_csv(cls, **kwargs):
         return cls(**{k: v for k, v in kwargs.items() if k in inspect.signature(cls).parameters})
 
     def __post_init__(self):

@@ -43,7 +43,7 @@ class CircuitCableReport(Report):
 
 
 class ReviewReport(Report):
-    name = "Circuits that Need Review"
+    name = "Circuits Needing Review"
     description = "Display Circuits needing extra review."
     scheduling_enabled = False
 
@@ -55,7 +55,7 @@ class ReviewReport(Report):
 
 
 class DeviceSNReport(Report):
-    name = "Devices missing Serial Number"
+    name = "Devices Missing Serial Number"
     description = "Display Devices with blank Serial Number"
     scheduling_enabled = False
 

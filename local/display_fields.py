@@ -219,7 +219,6 @@ HEADER_MAPPING = {
     "PP MM New Port": "mm_pp_new_port",
     "PP MM Port Description": "mm_pp_port_description",
     "PP MM Info": "mm_pp_info",
-    "MM Cross Connect": "mm_xconnect_id",
     "Create PP MM Port": "mm_create_pp_port",
 }
 
