@@ -21,9 +21,7 @@ install:
 	done
 	@echo "Validated/Created __init__.py files"
 
-	$(eval MANUAL_UPGRADE := false)
-	@$(MAKE) --no-print-directory MANUAL_UPGRADE=false upgrade
-	
+	@make --no-print-directory MANUAL_UPGRADE=false upgrade
 	@echo "Updating Permissions.."
 	@make -s update_permissions
 
