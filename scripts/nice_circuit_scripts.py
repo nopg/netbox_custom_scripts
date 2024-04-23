@@ -367,7 +367,7 @@ class CircuitValidation(Script):
 
         for circuit in circuits:
             valid, message = validator.validate(circuit, logger=self)
-            
+
             if valid:
                 circuits_valid.append({"circuit": circuit, "message": message})
                 log = self.log_success

@@ -344,20 +344,10 @@ def save_cables(logger: Script, cables: list, allow_skip: bool = False):
     return "success"
 
 
-# def validate_circuit(circuit: Circuit) -> bool:
-#     """
-#     Validate a circuit.
-#     """
-#     validator = CircuitValidator()
-#     valid, err = validator.validate(circuit=circuit)
-#     return valid
-
-
 def save_circuit(circuit: Circuit, logger: Script, allow_skip: bool = False):
     """
     Save a circuit and handle any errors.
     """
-    #valid, err = CircuitValidator().validate(circuit)
     valid = True
     if not valid:
         error = f"Failed custom validation: {err}"

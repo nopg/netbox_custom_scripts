@@ -30,7 +30,7 @@ class NiceCircuit:
     provider: Provider
     circuit_type: CircuitType
     side_a_site: Site
-    side_z_providernetwork: ProviderNetwork
+    # side_z_providernetwork: ProviderNetwork
     # Cables (Side A)
     pp: Device
     pp_port: RearPort
@@ -53,8 +53,8 @@ class NiceCircuit:
     allow_skip: bool = False
     overwrite: bool = False
     from_csv: bool = False
-    #circuit: Circuit = None
-
+    circuit: Circuit = None
+    side_z_providernetwork: ProviderNetwork = ""
 
     def __post_init__(self, **kwargs) -> None:
         # For now - always defaulted to LC & Yellow
@@ -270,7 +270,7 @@ class NiceCircuit:
         Returns:
             A netbox CircuitTermination
         """
-    
+
         pp_info = self.pp_info if side == "A" else getattr(self, "z_pp_info", "")
 
         termination: CircuitTermination = None
@@ -290,13 +290,13 @@ class NiceCircuit:
                 circuit=self.circuit,
                 port_speed=self.port_speed,
                 upstream_speed=self.upstream_speed,
-                #xconnect_id=self.xconnect_id,
+                # xconnect_id=self.xconnect_id,
                 pp_info=pp_info,
             )
         else:
             termination.port_speed = self.port_speed
             termination.upstream_speed = self.upstream_speed
-            #termination.xconnect_id = self.xconnect_id
+            # termination.xconnect_id = self.xconnect_id
             termination.pp_info = pp_info
 
         return termination
@@ -443,8 +443,6 @@ class NiceCircuit:
         else:
             raise AbortScript(f"Unsupported a_side: {a_side}.")
 
-        
-        
         return Cable(
             a_terminations=[a_side],
             b_terminations=[interface_or_pp_port],
@@ -620,7 +618,13 @@ class NiceStandardCircuit(NiceCircuit):
         if not success:
             return
         success = super().create_standard_cables(
-            self.pp, self.pp_port, self.pp_port_description, self.device, self.interface, self.termination_a, self.direct_to_device
+            self.pp,
+            self.pp_port,
+            self.pp_port_description,
+            self.device,
+            self.interface,
+            self.termination_a,
+            self.direct_to_device,
         )
 
         return success
@@ -742,12 +746,24 @@ class NiceP2PCircuit(NiceCircuit):
         if not success:
             return
         success = super().create_standard_cables(
-            self.pp, self.pp_port, self.pp_port_description, self.device, self.interface, self.termination_a, self.direct_to_device
+            self.pp,
+            self.pp_port,
+            self.pp_port_description,
+            self.device,
+            self.interface,
+            self.termination_a,
+            self.direct_to_device,
         )
         if not success:
             return
         success = super().create_standard_cables(
-            self.z_pp, self.z_pp_port, self.z_pp_port_description, self.z_device, self.z_interface, self.termination_z, self.z_direct_to_device
+            self.z_pp,
+            self.z_pp_port,
+            self.z_pp_port_description,
+            self.z_device,
+            self.z_interface,
+            self.termination_z,
+            self.z_direct_to_device,
         )
 
         return success
