@@ -16,7 +16,7 @@ install:
 	@for file in $(PY_INIT_FILES); do \
 		if [ ! -e "$$file" ]; then \
 			touch "$$file"; \
-			echo "\tCreated $$file"; \
+			echo "Created $$file"; \
 		fi \
 	done
 	@echo "Validated/Created __init__.py files"
@@ -27,7 +27,7 @@ install:
 
 	@echo ""
 	@echo "Install Complete!"
-	@echo "Make sure you update /netbox/local/display_fields.py with your bun_root_path!"
+	@echo "Make sure you update $(NETBOX_ROOT)/netbox/local/display_fields.py with your bun_root_path!"
 	@echo ""
 
 upgrade:
@@ -51,7 +51,7 @@ upgrade:
 		make --no-print-directory update_permissions; \
 		echo ""; \
 		echo "Upgrade Complete!"; \
-		echo "Make sure you update /netbox/local/display_fields.py with your bun_root_path!"; \
+		echo "Make sure you update $(NETBOX_ROOT)/netbox/local/display_fields.py with your bun_root_path!"; \
 		echo ""; \
 	fi 
 

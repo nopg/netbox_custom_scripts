@@ -222,4 +222,4 @@ HEADER_MAPPING = {
 }
 
 # Custom variables that should be kept private (update these per install)
-customs = {"bun_root_path": "X:\\My Test\Path"}
+customs = {"bun_root_path": "X:\\My Test\\Path"}
