@@ -1,36 +1,67 @@
-pull:
-	scp nicnb:/opt/netbox/netbox/scripts/nice_circuit_scripts.py ./scripts/
-	scp nicnb:/opt/netbox/netbox/reports/nice_reports.py ./reports/
-	scp nicnb:/opt/netbox/netbox/local/tests/test_nice_circuit_scripts.py ./local/tests/
-	scp nicnb:/opt/netbox/netbox/local/display_fields.py ./local/
-	scp nicnb:/opt/netbox/netbox/local/nice_circuits.py ./local/
-	scp nicnb:/opt/netbox/netbox/local/utils.py ./local/
-	scp nicnb:/opt/netbox/netbox/local/validators.py ./local/
+NETBOX_ROOT = /opt/netbox
+PY_INIT_FILES = $(NETBOX_ROOT)/netbox/local/__init__.py $(NETBOX_ROOT)/netbox/scripts/__init__.py $(NETBOX_ROOT)/netbox/reports/__init__.py
+MANUAL_UPGRADE := true
 
-	scp nicnb:/opt/netbox/netbox/scripts/testing.py ./runscript-testing/
+install:
+	@echo ""
+	@if [ "$(shell id -u)" -ne "0" ]; then \
+		echo "Error: This command must be run as root."; \
+		exit 1; \
+	fi
+	@mkdir -p $(NETBOX_ROOT)/netbox/scripts
+	@mkdir -p $(NETBOX_ROOT)/netbox/reports
+	@mkdir -p $(NETBOX_ROOT)/netbox/local/tests
+	@echo "Created Directories"
 
-push_csv_tests:
-	scp ./local/tests/test_bulk_circuits.csv nicnb:/opt/netbox/netbox/local/tests/
-	scp ./local/tests/test_bulk_circuits_fail.csv nicnb:/opt/netbox/netbox/local/tests/
-	scp runscript-testing/csv-runscript-circuits.csv nicnb:/opt/netbox/netbox/local/tests/
+	@for file in $(PY_INIT_FILES); do \
+		if [ ! -e "$$file" ]; then \
+			touch "$$file"; \
+			echo "\tCreated $$file"; \
+		fi \
+	done
+	@echo "Validated/Created __init__.py files"
 
-remember:
-	@echo "If you want to run 'make push': "
-	@echo "   .py files can be blank/empty before 'make push'"
-	@echo "   chown netbox on all filenames in this repo "
-	@echo " -------------------------------------------------------------"
-	@echo " YOU NEED THIS STRUCTURE ON NETBOX HOST: "
-	@echo "   /opt/netbox/netbox/local/__init__.py"
-	@echo "   /opt/netbox/netbox/local/tests/__init__.py"
-	@echo "   /opt/netbox/netbox/scripts/nice_circuit_scripts.py"
-	@echo "   /opt/netbox/netbox/reports/nice_reports.py"
-	@echo "   /opt/netbox/netbox/local/tests/test_nice_circuit_scripts.py"
-	@echo "   /opt/netbox/netbox/local/display_fields.py"
-	@echo "   /opt/netbox/netbox/local/nice_circuits.py"
-	@echo "   /opt/netbox/netbox/local/utils.py"
-	@echo "   /opt/netbox/netbox/local/validators.py"
-	@echo " -------------------------------------------------------------"
-	@echo " Change to test config	export NETBOX_CONFIGURATION=netbox.configuration_testing "
-	@echo " Ensure db permissions	ALTER DATABASE netbox OWNER TO netbox; "
-	@echo " 			ALTER USER netbox CREATEDB; "
-	@echo " Run Test		./manage.py test local.tests --keepdb -v 2 "
+	$(eval MANUAL_UPGRADE := false)
+	@$(MAKE) --no-print-directory MANUAL_UPGRADE=false upgrade
+	
+	@echo "Updating Permissions.."
+	@make -s update_permissions
+
+	@echo ""
+	@echo "Install Complete!"
+	@echo "Make sure you update /netbox/local/display_fields.py with your bun_root_path!"
+	@echo ""
+
+upgrade:
+	@if [ "$(shell id -u)" -ne "0" ]; then \
+		echo "Error: This command must be run as root."; \
+		exit 1; \
+	fi
+	
+	@echo "Copying files.."
+	@cp ./scripts/nice_circuit_scripts.py $(NETBOX_ROOT)/netbox/scripts/
+	@cp ./reports/nice_reports.py $(NETBOX_ROOT)/netbox/reports/
+	@cp ./local/tests/test_nice_circuit_scripts.py $(NETBOX_ROOT)/netbox/local/tests/
+	@cp ./local/display_fields.py $(NETBOX_ROOT)/netbox/local/
+	@cp ./local/nice_circuits.py $(NETBOX_ROOT)/netbox/local/
+	@cp ./local/utils.py $(NETBOX_ROOT)/netbox/local/
+	@cp ./local/validators.py $(NETBOX_ROOT)/netbox/local/
+	@echo "Successfully copied files."
+
+	@if [ "$(MANUAL_UPGRADE)" = "true" ]; then \
+		echo "Updating Permissions.."; \
+		make --no-print-directory update_permissions; \
+		echo ""; \
+		echo "Upgrade Complete!"; \
+		echo "Make sure you update /netbox/local/display_fields.py with your bun_root_path!"; \
+		echo ""; \
+	fi 
+
+update_permissions:
+	@if [ "$(shell id -u)" -ne "0" ]; then \
+		echo "Error: This command must be run as root."; \
+		exit 1; \
+	fi
+	@chown --recursive netbox $(NETBOX_ROOT)/netbox/local
+	@chown --recursive netbox $(NETBOX_ROOT)/netbox/scripts
+	@chown --recursive netbox $(NETBOX_ROOT)/netbox/reports
