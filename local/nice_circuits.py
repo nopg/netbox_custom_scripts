@@ -764,7 +764,6 @@ class NiceMeetMeCircuit(NiceCircuit):
     mm_pp_port: RearPort
     mm_pp_port_description: str
     mm_pp_new_port: bool
-    mm_pp_info: str
     mm_create_pp_port: bool
 
     @classmethod

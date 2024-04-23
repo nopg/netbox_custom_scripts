@@ -218,9 +218,8 @@ HEADER_MAPPING = {
     "PP MM Port": "mm_pp_port",
     "PP MM New Port": "mm_pp_new_port",
     "PP MM Port Description": "mm_pp_port_description",
-    "PP MM Info": "mm_pp_info",
     "Create PP MM Port": "mm_create_pp_port",
 }
 
-# Custom variables that should maybe be kept private (update these per install)
+# Custom variables that should be kept private (update these per install)
 customs = {"bun_root_path": "X:\\My Test\Path"}
