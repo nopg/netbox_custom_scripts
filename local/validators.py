@@ -4,6 +4,27 @@ from extras.scripts import Script
 from extras.validators import CustomValidator
 
 
+class PositionValidator(CustomValidator):
+    """
+    Raise Error if Device is assigned to rack, with u_height above 0, but not assigned a Rack Position
+    """
+
+    def get_device_height(self, device):
+        device_type = device.device_type
+        height = device_type.u_height
+        return height
+
+    def validate(self, device):
+        if not device.rack:
+            return
+        height = self.get_device_height(device)
+        if not height:
+            return
+        # In rack and height > 0, must have rack position
+        if not device.position:
+            self.fail(f"Device with height {height} must be assigned a Rack Position.")
+
+
 class CircuitValidator(CustomValidator):
     """
     Report to validate whether the Circuit conforms to the 'standard'
