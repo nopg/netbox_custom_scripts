@@ -21,7 +21,7 @@ from local.display_fields import HEADER_MAPPING
 from local.validators import CircuitValidator
 from utilities.exceptions import AbortScript
 
-BULK_SCRIPT_ALLOWED_USERS = ["netbox", "danny.berman", "joe.deweese", "loran.fuchs", "taylor", "gustavo"]
+BULK_SCRIPT_ALLOWED_USERS = ["netbox"]
 
 
 def generate_range(input_string):
